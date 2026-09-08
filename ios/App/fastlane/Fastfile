@@ -3,8 +3,6 @@ default_platform(:ios)
 platform :ios do
   desc "Build and upload to TestFlight"
   lane :beta do
-    setup_ci if ENV["CI"]
-
     key_id = ENV["APP_STORE_CONNECT_KEY_ID"].to_s.strip
     issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"].to_s.strip
     key_path = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_#{key_id}.p8")
@@ -16,31 +14,10 @@ platform :ios do
       in_house: false
     )
 
-    bundle_id = "com.shokuzai.kondatenavi"
     team_id = "LFVG96TFAH"
+    auth_args = "-allowProvisioningUpdates -authenticationKeyPath #{key_path} -authenticationKeyID #{key_id} -authenticationKeyIssuerID #{issuer_id}"
 
-    # 配布用証明書をダウンロード・インストール
-    get_certificates(
-      api_key: api_key
-    )
-
-    # 配布用プロビジョニングプロファイルをダウンロード・インストール
-    get_provisioning_profile(
-      api_key: api_key,
-      app_identifier: bundle_id
-    )
-
-    # CI環境向けにXcode署名を手動設定に切り替え
-    update_code_signing_settings(
-      path: "App.xcodeproj",
-      use_automatic_signing: false,
-      team_id: team_id,
-      bundle_identifier: bundle_id,
-      code_sign_identity: "Apple Distribution",
-      profile_name: lane_context[SharedValues::SIGH_NAME]
-    )
-
-    # アプリのビルド設定
+    # アプリのビルド設定 (Xcodeの自動署名とApp Store Connect APIキーを活用)
     build_app(
       project: "App.xcodeproj",
       scheme: "App",
@@ -49,11 +26,11 @@ platform :ios do
       export_method: "app-store",
       export_options: {
         method: "app-store",
-        signingStyle: "manual",
-        provisioningProfiles: {
-          bundle_id => lane_context[SharedValues::SIGH_NAME]
-        }
+        signingStyle: "automatic",
+        teamID: team_id
       },
+      xcargs: "#{auth_args} DEVELOPMENT_TEAM=#{team_id}",
+      export_xcargs: auth_args,
       destination: "generic/platform=iOS"
     )
 
@@ -64,4 +41,5 @@ platform :ios do
     )
   end
 end
+
 
