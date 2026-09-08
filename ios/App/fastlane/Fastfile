@@ -17,19 +17,23 @@ platform :ios do
     team_id = "5RBBPXKGSL"
     auth_args = "-allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'"
 
-    archive_path = File.expand_path("./build/App.xcarchive")
-    ipa_dir = File.expand_path("./build")
-    sh("mkdir -p '#{File.dirname(archive_path)}'")
+    project_path = File.expand_path("../App.xcodeproj", __dir__)
+    plist_path = File.expand_path("../ExportOptions.plist", __dir__)
 
-    # 1. アーカイブ生成 (前回 ARCHIVE SUCCEEDED 確認済み)
-    sh("xcodebuild archive -project App.xcodeproj -scheme App -configuration Release -archivePath '#{archive_path}' -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}")
+    # アプリのビルド・署名・IPA生成
+    build_app(
+      project: project_path,
+      scheme: "App",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: plist_path,
+      xcargs: "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}",
+      export_xcargs: auth_args,
+      destination: "generic/platform=iOS"
+    )
 
-    # 2. IPAエクスポート (Apple公式APIキーでプロファイルを直接自動取得・本番署名)
-    sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportPath '#{ipa_dir}' -exportOptionsPlist ExportOptions.plist #{auth_args}")
-
-    # 3. TestFlightへの自動送信
+    # TestFlightへ自動アップロード
     upload_to_testflight(
-      ipa: File.join(ipa_dir, "App.ipa"),
       api_key: api_key,
       skip_waiting_for_build_processing: true
     )
