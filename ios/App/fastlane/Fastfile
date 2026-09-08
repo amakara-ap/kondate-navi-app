@@ -48,7 +48,7 @@ platform :ios do
         signingStyle: "automatic",
         teamID: team_id
       },
-      xcargs: "DEVELOPMENT_TEAM=#{team_id} #{auth_args}",
+      xcargs: "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}",
       export_xcargs: auth_args,
       destination: "generic/platform=iOS"
     )
