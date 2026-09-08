@@ -14,7 +14,7 @@ platform :ios do
       in_house: false
     )
 
-    team_id = "LFVG96TFAH"
+    team_id = "5RBBPXKGSL"
     auth_args = "-allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'"
 
     # App Store用プロビジョニングプロファイルを自動ダウンロード
