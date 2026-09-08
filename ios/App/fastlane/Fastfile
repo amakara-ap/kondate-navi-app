@@ -17,7 +17,15 @@ platform :ios do
     team_id = "LFVG96TFAH"
     auth_args = "-allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'"
 
-    # アプリのビルド設定 (アーカイブ時は署名を遅延させ、IPAエクスポート時にApp Store署名を実施)
+    # App Store用プロビジョニングプロファイルを自動ダウンロード
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.shokuzai.kondatenavi"
+    )
+
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+
+    # アプリのビルド設定 (アーカイブ時は高速生成、IPAエクスポート時にApp Store署名を実施)
     build_app(
       project: "App.xcodeproj",
       scheme: "App",
@@ -27,7 +35,10 @@ platform :ios do
       export_options: {
         method: "app-store",
         signingStyle: "automatic",
-        teamID: team_id
+        teamID: team_id,
+        provisioningProfiles: {
+          "com.shokuzai.kondatenavi" => profile_name
+        }
       },
       xcargs: "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=#{team_id}",
       export_xcargs: auth_args,
