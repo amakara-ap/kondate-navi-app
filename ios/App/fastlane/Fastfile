@@ -19,14 +19,6 @@ platform :ios do
     bundle_id = "com.shokuzai.kondatenavi"
     team_id = "LFVG96TFAH"
 
-    # App Store Connect & Apple Developer Portal にアプリを登録（未登録の場合に自動作成）
-    produce(
-      api_key: api_key,
-      app_identifier: bundle_id,
-      app_name: "献立ナビ",
-      language: "Japanese"
-    )
-
     # 配布用証明書をダウンロード・インストール
     get_certificates(
       api_key: api_key
