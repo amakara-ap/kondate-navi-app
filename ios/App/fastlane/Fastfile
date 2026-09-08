@@ -15,7 +15,7 @@ platform :ios do
     )
 
     team_id = "LFVG96TFAH"
-    auth_args = "-allowProvisioningUpdates -authenticationKeyPath #{key_path} -authenticationKeyID #{key_id} -authenticationKeyIssuerID #{issuer_id}"
+    auth_args = "-allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'"
 
     # アプリのビルド設定 (Xcodeの自動署名とApp Store Connect APIキーを活用)
     build_app(

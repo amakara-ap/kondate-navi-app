@@ -59,3 +59,8 @@ jobs:
           cd ios/App
           fastlane beta
 
+      - name: Show gym build log on failure
+        if: failure()
+        run: |
+          cat ~/Library/Logs/gym/App-App.log || true
+
