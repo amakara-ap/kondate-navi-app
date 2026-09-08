@@ -17,48 +17,21 @@ platform :ios do
     team_id = "5RBBPXKGSL"
     auth_args = "-allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'"
 
-    # CI環境用の一時キーチェーンを作成してアンロック
-    keychain_name = "fastlane_keychain"
-    keychain_password = "temporary_password_123"
+    archive_path = File.expand_path("./build/App.xcarchive")
+    ipa_dir = File.expand_path("./build")
+    sh("mkdir -p '#{File.dirname(archive_path)}'")
 
-    begin
-      delete_keychain(name: keychain_name)
-    rescue => e
-      # 初回実行時などキーチェーンが存在しない場合は無視
-    end
+    # 1. アーカイブ生成 (前回 ARCHIVE SUCCEEDED 確認済み)
+    sh("xcodebuild archive -project App.xcodeproj -scheme App -configuration Release -archivePath '#{archive_path}' -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}")
 
-    create_keychain(
-      name: keychain_name,
-      password: keychain_password,
-      default_keychain: true,
-      unlock: true,
-      timeout: 3600,
-      lock_when_sleeps: false
-    )
+    # 2. IPAエクスポート (Apple公式APIキーでプロファイルを直接自動取得・本番署名)
+    sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportPath '#{ipa_dir}' -exportOptionsPlist ExportOptions.plist #{auth_args}")
 
-    # アプリのビルド・署名・IPAエクスポート (Xcodeの公式API自動プロビジョニングを利用)
-    build_app(
-      project: "App.xcodeproj",
-      scheme: "App",
-      configuration: "Release",
-      clean: true,
-      export_method: "app-store",
-      export_options: {
-        method: "app-store",
-        signingStyle: "automatic",
-        teamID: team_id
-      },
-      xcargs: "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}",
-      export_xcargs: auth_args,
-      destination: "generic/platform=iOS"
-    )
-
-    # TestFlightへの自動送信
+    # 3. TestFlightへの自動送信
     upload_to_testflight(
+      ipa: File.join(ipa_dir, "App.ipa"),
       api_key: api_key,
       skip_waiting_for_build_processing: true
     )
   end
 end
-
-
