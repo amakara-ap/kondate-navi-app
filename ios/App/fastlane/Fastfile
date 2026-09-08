@@ -11,6 +11,8 @@ platform :ios do
       in_house: false
     )
 
+    key_path = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_#{ENV['APP_STORE_CONNECT_KEY_ID']}.p8")
+
     # アプリのビルド設定
     build_app(
       project: "App.xcodeproj",
@@ -20,7 +22,7 @@ platform :ios do
         method: "app-store",
         signingStyle: "automatic"
       },
-      xcargs: "-allowProvisioningUpdates -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_#{ENV['APP_STORE_CONNECT_KEY_ID']}.p8 -authenticationKeyID #{ENV['APP_STORE_CONNECT_KEY_ID']} -authenticationKeyIssuerID #{ENV['APP_STORE_CONNECT_ISSUER_ID']}",
+      xcargs: "-allowProvisioningUpdates -authenticationKeyPath #{key_path} -authenticationKeyID #{ENV['APP_STORE_CONNECT_KEY_ID']} -authenticationKeyIssuerID #{ENV['APP_STORE_CONNECT_ISSUER_ID']}",
       destination: "generic/platform=iOS"
     )
 

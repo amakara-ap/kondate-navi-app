@@ -31,9 +31,9 @@ jobs:
           KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          echo "$KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8
-          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          node -e 'require("fs").writeFileSync(process.env.HOME + "/.appstoreconnect/private_keys/AuthKey_" + process.env.KEY_ID + ".p8", process.env.KEY_CONTENT)'
+          chmod 600 "$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8"
 
       - name: Setup Ruby and Bundler
         uses: ruby/setup-ruby@v1
