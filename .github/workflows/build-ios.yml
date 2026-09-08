@@ -1,0 +1,46 @@
+name: Build & Upload to TestFlight
+
+on:
+  workflow_dispatch: # 手動で「Run workflow」ボタンを押していつでも実行可能
+
+jobs:
+  build:
+    name: Build iOS Native App and Upload to TestFlight
+    runs-on: macos-14 # GitHubの最新クラウドMac (M1/M2 Apple Silicon)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Setup Ruby and Bundler
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install fastlane
+        run: gem install fastlane --no-document
+
+      - name: Build & Upload to TestFlight via Fastlane
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          cd ios/App
+          fastlane beta
+

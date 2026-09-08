@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: "Zen Kaku Gothic New", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    letter-spacing: -0.01em;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: default;
+    overscroll-behavior-y: none;
+  }
+}
+
+/* iOS Safe Area Padding Support */
+header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+footer {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+@keyframes pulseSubtle {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulseSubtle 2.5s infinite ease-in-out;
+}
+
+/* Print Optimization for Kitchen Recipe Sheets */
+@media print {
+  header,
+  footer,
+  #nav-quick-back-btn,
+  #nav-install-app-btn,
+  #nav-saved-top-btn,
+  #detail-back-button,
+  #detail-copy-btn,
+  #detail-save-btn,
+  #detail-bottom-back-btn,
+  #start-handsfree-cooking-btn,
+  #toggle-shopping-mode-btn,
+  #share-shopping-line-btn,
+  #copy-shopping-memo-btn,
+  button {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .shadow-xs,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  .border,
+  .border-2 {
+    border-color: #cbd5e1 !important;
+  }
+}

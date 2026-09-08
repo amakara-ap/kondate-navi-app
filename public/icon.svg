@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="50%" stop-color="#047857"/>
+      <stop offset="100%" stop-color="#064e3b"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#022c22" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1024" height="1024" rx="224" fill="url(#bgGrad)"/>
+
+  <!-- Subtle Inner Glow Layer -->
+  <circle cx="512" cy="512" r="380" fill="none" stroke="#34d399" stroke-width="4" stroke-opacity="0.25"/>
+
+  <!-- Central Camera Body Shell with Drop Shadow -->
+  <g filter="url(#dropShadow)">
+    <!-- Camera Body -->
+    <path d="M320 380 L380 300 L644 300 L704 380 L800 380 C844 380 880 416 880 460 L880 720 C880 764 844 800 800 800 L224 800 C180 800 144 764 144 720 L144 460 C144 416 180 380 224 380 Z" fill="#ffffff" fill-opacity="0.95"/>
+    
+    <!-- Camera Lens Rim -->
+    <circle cx="512" cy="590" r="170" fill="url(#lensGrad)"/>
+    <circle cx="512" cy="590" r="140" fill="#064e3b" stroke="#ffffff" stroke-width="12"/>
+
+    <!-- Crossed Spoon and Fork inside Lens Center -->
+    <g transform="translate(512, 590) scale(1.15)">
+      <!-- Fork -->
+      <path d="M-40 -50 L-40 -15 C-40 0 -20 15 -10 25 L-10 65 C-10 70 -5 75 0 75 C5 75 10 70 10 65 L10 25 C20 15 40 0 40 -15 L40 -50" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+      <line x1="-20" y1="-50" x2="-20" y2="-20" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+      <line x1="0" y1="-50" x2="0" y2="-20" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+      <line x1="20" y1="-50" x2="20" y2="-20" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+    </g>
+
+    <!-- Top Shutter Flash Indicator -->
+    <circle cx="760" cy="440" r="28" fill="url(#goldGrad)"/>
+  </g>
+
+  <!-- Sparkling Recipe Magic Stars -->
+  <g fill="url(#goldGrad)">
+    <!-- Big Sparkle Top Right -->
+    <path d="M780 220 Q780 270 830 270 Q780 270 780 320 Q780 270 730 270 Q780 270 780 220 Z"/>
+    <!-- Small Sparkle Top Left -->
+    <path d="M260 210 Q260 240 290 240 Q260 240 260 270 Q260 240 230 240 Q260 240 260 210 Z"/>
+    <!-- Tiny Sparkle Bottom Center -->
+    <circle cx="512" cy="200" r="14"/>
+  </g>
+</svg>
+

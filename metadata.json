@@ -1,0 +1,6 @@
+{
+  "name": "食材カメラ献立ナビ",
+  "description": "スマホのカメラで食材（生肉・魚・野菜・スーパーの値札ラベル・加工肉・茹で麺・加工食品）を撮影すると、AIが最適なレシピを提案。人数に応じた食材・調味料の必要量や1人前あたりのカロリーを自動計算します。",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
