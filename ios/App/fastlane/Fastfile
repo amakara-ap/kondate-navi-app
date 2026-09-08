@@ -16,6 +16,11 @@ platform :ios do
       project: "App.xcodeproj",
       scheme: "App",
       export_method: "app-store",
+      export_options: {
+        method: "app-store",
+        signingStyle: "automatic"
+      },
+      xcargs: "-allowProvisioningUpdates -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_#{ENV['APP_STORE_CONNECT_KEY_ID']}.p8 -authenticationKeyID #{ENV['APP_STORE_CONNECT_KEY_ID']} -authenticationKeyIssuerID #{ENV['APP_STORE_CONNECT_ISSUER_ID']}",
       destination: "generic/platform=iOS"
     )
 
