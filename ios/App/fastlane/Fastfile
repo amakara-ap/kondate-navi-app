@@ -117,6 +117,7 @@ platform :ios do
     UI.message("🚀 Step 3: Uploading #{ipa_path} to TestFlight...")
     upload_to_testflight(
       ipa: ipa_path,
+      app_identifier: "com.shokuzai.kondatenavi",
       api_key: api_key,
       skip_waiting_for_build_processing: true
     )

@@ -1,4 +1,3 @@
 app_identifier("com.shokuzai.kondatenavi")
-apple_id("m.y.k.waka524@gmail.com")
 team_id("5RBBPXKGSL")
-itc_team_id("1950682") # App Store Connect Team ID
+itc_team_id("1950682")
