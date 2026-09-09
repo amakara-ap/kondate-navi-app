@@ -24,6 +24,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>スーパーの生鮮食材・パッケージ・値札ラベルを撮影し、AIによる献立レシピの自動提案および調味料・カロリーの計算を行うためにカメラを使用します。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
