@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     name: Build iOS Native App and Upload to TestFlight
-    runs-on: macos-15 # Xcode 16 & iOS 18 SDK (Apple最新要件対応)
+    runs-on: macos-26 # Xcode 16 & iOS 18 SDK (Apple最新要件対応)
 
     steps:
       - name: Checkout repository
