@@ -115,9 +115,16 @@ platform :ios do
     XML
     File.write(plist_path, plist_content)
 
+    # 4.5 ビルド番号の自動更新（App Store Connect重複アップロード防止）
+    # GITHUB_RUN_NUMBERがあればそれを使い、なければタイムスタンプで絶対に1より大きいユニークな番号にする
+    run_num = ENV["GITHUB_RUN_NUMBER"].to_i
+    build_num = (run_num > 1 ? run_num : (Time.now.to_i % 100000 + 100)).to_s
+    UI.message("🔢 Setting build number to #{build_num}...")
+    sh("cd '#{File.dirname(project_path)}' && xcrun agvtool new-version -all #{build_num} || true")
+
     # 5. アプリのアーカイブ（コンパイル）
-    UI.message("📦 Step 1: Archiving App...")
-    sh("xcodebuild archive -project '#{project_path}' -scheme App -configuration Release -archivePath '#{archive_path}' -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}")
+    UI.message("📦 Step 1: Archiving App with build number #{build_num}...")
+    sh("xcodebuild archive -project '#{project_path}' -scheme App -configuration Release -archivePath '#{archive_path}' -destination 'generic/platform=iOS' CURRENT_PROJECT_VERSION=#{build_num} CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}")
 
     # 6. IPAのエクスポート（署名）
     UI.message("✍️ Step 2: Exporting IPA with Apple Code Signing...")

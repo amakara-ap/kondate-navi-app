@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { SAMPLE_PRESETS, PANTRY_STAPLES, SampleIngredientPreset } from "../data/sampleImages";
 import { QRCodeSVG } from "qrcode.react";
+import { detectIngredientsFromImageBuffer } from "../utils/recipeGenerator";
 
 export interface IngredientCategoryGroup {
   id: string;
@@ -201,12 +202,14 @@ interface CameraCaptureProps {
   onAnalyzeImage: (imageBase64: string, mimeType: string, preferences: any) => Promise<void>;
   onAnalyzeText: (ingredients: string[], preferences: any) => Promise<void>;
   isLoading: boolean;
+  errorMessage?: string | null;
 }
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({
   onAnalyzeImage,
   onAnalyzeText,
   isLoading,
+  errorMessage,
 }) => {
   const [activeTab, setActiveTab] = useState<"camera" | "manual">("camera");
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -248,26 +251,44 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
     setIsQuickDetecting(true);
     setDetectedOcrInfo(null);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
       const res = await fetch("/api/quick-detect-ingredient", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64, mimeType }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const data = await res.json();
         if (data.detectedName && data.detectedName !== "食材写真") {
           setDetectedIngredientTag(data.detectedName);
           setDetectedOcrInfo(data);
+          setIsQuickDetecting(false);
+          return;
         } else if (data.allDetected && data.allDetected.length > 0) {
           setDetectedIngredientTag(data.allDetected[0]);
           setDetectedOcrInfo(data);
+          setIsQuickDetecting(false);
+          return;
         }
       }
     } catch (err) {
-      console.warn("Live package detection request failed:", err);
+      console.warn("Live package detection request failed (running standalone or offline):", err);
     } finally {
       setIsQuickDetecting(false);
     }
+
+    // On-device heuristic detection fallback
+    try {
+      const guesses = detectIngredientsFromImageBuffer(imageBase64);
+      if (guesses && guesses.length > 0) {
+        setDetectedIngredientTag((prev) => (prev && prev !== "食材写真" ? prev : guesses[0]));
+      }
+    } catch {}
   };
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -449,32 +470,36 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       cuisine: cuisinePreference !== "all" ? cuisinePreference : undefined,
       mood: moodPreference !== "all" ? moodPreference : undefined,
       staples: selectedStaples,
-      customIngredients: activeTab === "manual" ? customIngredients : undefined,
-      detectedHint: activeTab === "camera" && capturedPreview ? detectedIngredientTag : undefined,
+      customIngredients: customIngredients.length > 0 ? customIngredients : undefined,
+      detectedHint: activeTab === "camera" && capturedPreview ? (detectedIngredientTag || "食材写真") : undefined,
     };
   };
 
   const handleAnalyze = async () => {
-    if (activeTab === "manual") {
-      let finalIngredients = [...customIngredients];
-      if (newIngredientInput.trim()) {
-        const trimmed = newIngredientInput.trim();
-        if (!finalIngredients.includes(trimmed)) {
-          finalIngredients.push(trimmed);
-          setCustomIngredients(finalIngredients);
+    try {
+      if (activeTab === "manual") {
+        let finalIngredients = [...customIngredients];
+        if (newIngredientInput.trim()) {
+          const trimmed = newIngredientInput.trim();
+          if (!finalIngredients.includes(trimmed)) {
+            finalIngredients.push(trimmed);
+            setCustomIngredients(finalIngredients);
+          }
+          setNewIngredientInput("");
         }
-        setNewIngredientInput("");
+        if (finalIngredients.length === 0) return;
+        await onAnalyzeText(finalIngredients, {
+          time: timePreference !== "all" ? timePreference : undefined,
+          cuisine: cuisinePreference !== "all" ? cuisinePreference : undefined,
+          mood: moodPreference !== "all" ? moodPreference : undefined,
+          staples: selectedStaples,
+          customIngredients: finalIngredients,
+        });
+      } else if (capturedPreview) {
+        await onAnalyzeImage(capturedPreview, capturedMimeType, buildPreferences());
       }
-      if (finalIngredients.length === 0) return;
-      await onAnalyzeText(finalIngredients, {
-        time: timePreference !== "all" ? timePreference : undefined,
-        cuisine: cuisinePreference !== "all" ? cuisinePreference : undefined,
-        mood: moodPreference !== "all" ? moodPreference : undefined,
-        staples: selectedStaples,
-        customIngredients: finalIngredients,
-      });
-    } else if (capturedPreview) {
-      await onAnalyzeImage(capturedPreview, capturedMimeType, buildPreferences());
+    } catch (e) {
+      console.error("handleAnalyze failed:", e);
     }
   };
 
@@ -1287,7 +1312,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
         </div>
 
         {/* Big Action Submit Button */}
-        <div className="pt-2">
+        <div className="pt-2 space-y-3">
+          {errorMessage && (
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-2.5 text-red-900 text-xs sm:text-sm">
+              <Info className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">お知らせ</p>
+                <p className="text-red-700">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             id="analyze-submit-button"
@@ -1297,7 +1332,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
               (!capturedPreview && activeTab !== "manual") ||
               (activeTab === "manual" && customIngredients.length === 0)
             }
-            className="w-full py-4 bg-emerald-700 hover:bg-emerald-800 active:scale-[0.99] text-white text-base sm:text-lg font-black rounded-2xl shadow-md hover:shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+            className="w-full py-4 bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white text-base sm:text-lg font-black rounded-2xl shadow-md hover:shadow-lg shadow-emerald-950/20 flex items-center justify-center gap-2.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none touch-manipulation cursor-pointer select-none"
           >
             {isLoading ? (
               <>
