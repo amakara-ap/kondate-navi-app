@@ -15,27 +15,31 @@ platform :ios do
     )
 
     team_id = "5RBBPXKGSL"
-    auth_args = "-allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'"
-
     project_path = File.expand_path("../App.xcodeproj", __dir__)
+    archive_path = File.expand_path("./build/App.xcarchive", __dir__)
+    ipa_dir = File.expand_path("./build", __dir__)
     plist_path = File.expand_path("../ExportOptions.plist", __dir__)
 
-    # アプリのビルド・署名・IPA生成
-    build_app(
-      project: project_path,
-      scheme: "App",
-      configuration: "Release",
-      export_method: "app-store",
-      export_options: plist_path,
-      xcargs: "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}",
-      export_xcargs: auth_args,
-      destination: "generic/platform=iOS"
-    )
+    sh("mkdir -p '#{ipa_dir}'")
 
-    # TestFlightへ自動アップロード
+    UI.message("📦 Step 1: Archiving App...")
+    sh("xcodebuild archive -project '#{project_path}' -scheme App -configuration Release -archivePath '#{archive_path}' -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}")
+
+    UI.message("✍️ Step 2: Exporting IPA with Apple Code Signing...")
+    sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportPath '#{ipa_dir}' -exportOptionsPlist '#{plist_path}' -allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'")
+
+    ipa_files = Dir.glob("#{ipa_dir}/*.ipa")
+    if ipa_files.empty?
+      UI.user_error!("❌ No .ipa file found in #{ipa_dir}")
+    end
+    ipa_path = ipa_files.first
+    UI.message("🚀 Step 3: Uploading #{ipa_path} to TestFlight...")
+
     upload_to_testflight(
+      ipa: ipa_path,
       api_key: api_key,
       skip_waiting_for_build_processing: true
     )
+    UI.success("🎉 Successfully uploaded to TestFlight!")
   end
 end
