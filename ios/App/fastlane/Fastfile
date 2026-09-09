@@ -22,19 +22,96 @@ platform :ios do
 
     sh("mkdir -p '#{ipa_dir}'")
 
+    # 1. 一時Keychainを作成
+    keychain_name = "fastlane_keychain"
+    keychain_password = "temp_password_123"
+
+    begin
+      delete_keychain(name: keychain_name)
+    rescue => e
+      UI.message("Keychain not present yet, proceeding...")
+    end
+
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
+
+    keychain_path = lane_context[SharedValues::KEYCHAIN_PATH]
+    if keychain_path.nil? || !File.exist?(keychain_path)
+      keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+      unless File.exist?(keychain_path)
+        keychain_path = File.expand_path("~/Library/Keychains/#{keychain_name}")
+      end
+    end
+
+    sh("security list-keychains -d user -s '#{keychain_path}' $(security list-keychains -d user | tr -d '\"')")
+
+    # 2. 配布用証明書（Distribution Certificate）と秘密鍵を取得・Keychainに登録
+    UI.message("🔑 Fetching / Creating Apple Distribution Certificate...")
+    get_certificates(
+      api_key: api_key,
+      keychain_path: keychain_path,
+      keychain_password: keychain_password
+    )
+
+    sh("security set-key-partition-list -S apple-tool:,apple: -s -k '#{keychain_password}' '#{keychain_path}'")
+
+    # 3. TestFlight / App Store 用プロビジョニングプロファイルを取得
+    UI.message("📋 Fetching / Creating App Store Provisioning Profile...")
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.shokuzai.kondatenavi"
+    )
+
+    profile_name = lane_context[SharedValues::SIGH_NAME] || ENV["SIGH_NAME"]
+    UI.message("✅ Obtained Provisioning Profile: #{profile_name}")
+
+    # 4. ExportOptions.plist をプロファイル名に合わせて動的生成
+    plist_content = <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+      	<key>method</key>
+      	<string>app-store</string>
+      	<key>signingStyle</key>
+      	<string>manual</string>
+      	<key>teamID</key>
+      	<string>#{team_id}</string>
+      	<key>provisioningProfiles</key>
+      	<dict>
+      		<key>com.shokuzai.kondatenavi</key>
+      		<string>#{profile_name}</string>
+      	</dict>
+      	<key>uploadSymbols</key>
+      	<true/>
+      </dict>
+      </plist>
+    XML
+    File.write(plist_path, plist_content)
+
+    # 5. アプリのアーカイブ（コンパイル）
     UI.message("📦 Step 1: Archiving App...")
     sh("xcodebuild archive -project '#{project_path}' -scheme App -configuration Release -archivePath '#{archive_path}' -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' DEVELOPMENT_TEAM=#{team_id}")
 
+    # 6. IPAのエクスポート（署名）
     UI.message("✍️ Step 2: Exporting IPA with Apple Code Signing...")
-    sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportPath '#{ipa_dir}' -exportOptionsPlist '#{plist_path}' -allowProvisioningUpdates -authenticationKeyPath '#{key_path}' -authenticationKeyID '#{key_id}' -authenticationKeyIssuerID '#{issuer_id}'")
+    sh("security unlock-keychain -p '#{keychain_password}' '#{keychain_path}'")
+    sh("xcodebuild -exportArchive -archivePath '#{archive_path}' -exportPath '#{ipa_dir}' -exportOptionsPlist '#{plist_path}'")
 
     ipa_files = Dir.glob("#{ipa_dir}/*.ipa")
     if ipa_files.empty?
       UI.user_error!("❌ No .ipa file found in #{ipa_dir}")
     end
     ipa_path = ipa_files.first
-    UI.message("🚀 Step 3: Uploading #{ipa_path} to TestFlight...")
 
+    # 7. TestFlightへの自動アップロード
+    UI.message("🚀 Step 3: Uploading #{ipa_path} to TestFlight...")
     upload_to_testflight(
       ipa: ipa_path,
       api_key: api_key,
