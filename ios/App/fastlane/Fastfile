@@ -53,7 +53,13 @@ platform :ios do
 
     # 2. 配布用証明書（Distribution Certificate）と秘密鍵を取得・Keychainに登録
     UI.message("🔑 Managing Apple Distribution Certificates via Spaceship Connect API...")
-    Spaceship::ConnectAPI.token = api_key
+    token = Spaceship::ConnectAPI::Token.create(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      filepath: key_path,
+      in_house: false
+    )
+    Spaceship::ConnectAPI.token = token
     certs = Spaceship::ConnectAPI::Certificate.all
     dist_certs = certs.select { |c| c.certificate_type.to_s.upcase.include?("DISTRIBUTION") }
     UI.message("Found #{dist_certs.count} active distribution certificate(s): #{dist_certs.map(&:id).join(', ')}")
