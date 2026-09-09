@@ -52,29 +52,27 @@ platform :ios do
     sh("security list-keychains -d user -s '#{keychain_path}' $(security list-keychains -d user | tr -d '\"')")
 
     # 2. 配布用証明書（Distribution Certificate）と秘密鍵を取得・Keychainに登録
-    UI.message("🔑 Checking Apple Distribution Certificates...")
-    begin
-      Spaceship::ConnectAPI.token = api_key
-      certs = Spaceship::ConnectAPI::Certificate.all
-      dist_certs = certs.select { |c| c.certificate_type.to_s.upcase.include?("DISTRIBUTION") }
-      UI.message("Found #{dist_certs.count} active distribution certificate(s): #{dist_certs.map(&:id).join(', ')}")
-      if dist_certs.count >= 2
-        UI.message("⚠️ Reached Apple distribution certificate limit (2). Freeing a slot by removing non-primary certificate...")
-        # 手元Macの証明書（25V932J785）を保護し、もう一方（XUYMV8UF73など）を削除
-        target_to_delete = dist_certs.find { |c| c.id != "25V932J785" } || dist_certs.last
-        UI.message("🗑️ Revoking certificate #{target_to_delete.id} (#{target_to_delete.name})...")
-        target_to_delete.delete!
-        UI.success("✅ Certificate slot freed successfully!")
-      end
-    rescue => e
-      UI.important("Certificate cleanup note: #{e.message}")
+    UI.message("🔑 Managing Apple Distribution Certificates via Spaceship Connect API...")
+    Spaceship::ConnectAPI.token = api_key
+    certs = Spaceship::ConnectAPI::Certificate.all
+    dist_certs = certs.select { |c| c.certificate_type.to_s.upcase.include?("DISTRIBUTION") }
+    UI.message("Found #{dist_certs.count} active distribution certificate(s): #{dist_certs.map(&:id).join(', ')}")
+
+    # Appleアカウントは最大2枚まで。GitHub Actions側には秘密鍵がないため、上限に達している場合は非メインの証明書を破棄して枠を空ける
+    if dist_certs.count >= 2
+      # 手元Macの証明書（25V932J785）を優先保護
+      target_to_delete = dist_certs.find { |c| c.id != "25V932J785" } || dist_certs.last
+      UI.message("🗑️ Revoking certificate #{target_to_delete.id} (#{target_to_delete.name}) to free slot for CI...")
+      target_to_delete.delete!
+      UI.success("✅ Certificate slot successfully freed!")
     end
 
-    UI.message("🔑 Fetching / Creating Apple Distribution Certificate...")
+    UI.message("🔑 Fetching or Creating Apple Distribution Certificate...")
     get_certificates(
       api_key: api_key,
       keychain_path: keychain_path,
-      keychain_password: keychain_password
+      keychain_password: keychain_password,
+      force: true
     )
 
     sh("security set-key-partition-list -S apple-tool:,apple: -s -k '#{keychain_password}' '#{keychain_path}'")
