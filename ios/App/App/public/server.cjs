@@ -1,0 +1,2600 @@
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
+// server.ts
+var import_express = __toESM(require("express"), 1);
+var import_path = __toESM(require("path"), 1);
+var import_dotenv = __toESM(require("dotenv"), 1);
+var import_genai = require("@google/genai");
+var import_vite = require("vite");
+
+// src/utils/imageAnalyzer.ts
+function rgbToHsv(r, g, b) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const s = max === 0 ? 0 : d / max;
+  const v = (r + g + b) / 3;
+  let h = 0;
+  if (d > 0) {
+    if (max === r) h = (g - b) / d % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  }
+  return { h, s, v };
+}
+function analyzePixelsWithObjectIsolation(pixels, width, height) {
+  let greenCount = 0;
+  let darkGreenCount = 0;
+  let lightGreenCount = 0;
+  let orangeCount = 0;
+  let redCount = 0;
+  let purpleCount = 0;
+  let daikonWhiteCount = 0;
+  let yellowCount = 0;
+  let onionCount = 0;
+  let totalAnalyzed = 0;
+  const marginX = Math.floor(width * 0.12);
+  const marginY = Math.floor(height * 0.12);
+  const centerXMin = Math.floor(width * 0.25);
+  const centerXMax = Math.floor(width * 0.75);
+  const centerYMin = Math.floor(height * 0.25);
+  const centerYMax = Math.floor(height * 0.75);
+  for (let y = marginY; y < height - marginY; y++) {
+    for (let x = marginX; x < width - marginX; x++) {
+      const idx = (y * width + x) * 4;
+      const r = pixels[idx];
+      const g = pixels[idx + 1];
+      const b = pixels[idx + 2];
+      const a = pixels[idx + 3] !== void 0 ? pixels[idx + 3] : 255;
+      if (a < 50) continue;
+      const isCenter = x >= centerXMin && x <= centerXMax && y >= centerYMin && y <= centerYMax;
+      const weight = isCenter ? 2 : 1;
+      totalAnalyzed += weight;
+      const { h, s, v } = rgbToHsv(r, g, b);
+      const isGreenHue = h >= 65 && h <= 175 && s >= 0.14 || g > r * 1.14 && g > b * 1.1 && s >= 0.12;
+      if (isGreenHue) {
+        greenCount += weight;
+        if (v < 130 || g < 140) {
+          darkGreenCount += weight;
+        } else {
+          lightGreenCount += weight;
+        }
+        continue;
+      }
+      const isCarrotOrange = h >= 12 && h <= 36 && s >= 0.32 && r > g * 1.2 && b < 125;
+      if (isCarrotOrange) {
+        orangeCount += weight;
+        continue;
+      }
+      const isTomatoRed = (h >= 345 || h <= 12) && s >= 0.35 && r > 120 && r > g * 1.25;
+      if (isTomatoRed) {
+        redCount += weight;
+        continue;
+      }
+      const isEggplantPurple = (h >= 240 && h <= 335 && s >= 0.14 || b > g && r > g && b > 40) && v < 120;
+      if (isEggplantPurple) {
+        purpleCount += weight;
+        continue;
+      }
+      const isDaikonWhite = v >= 160 && s < 0.19 && r > 150 && g > 150 && b > 140;
+      if (isDaikonWhite) {
+        daikonWhiteCount += weight;
+        continue;
+      }
+      const isPumpkinYellow = h >= 36 && h <= 62 && s >= 0.5 && r > 150 && g > 120;
+      if (isPumpkinYellow) {
+        yellowCount += weight;
+        continue;
+      }
+      const isOnion = h >= 26 && h <= 52 && s >= 0.24 && s <= 0.48 && r > 140 && g > 105 && v < 190;
+      if (isOnion) {
+        onionCount += weight;
+        continue;
+      }
+    }
+  }
+  if (totalAnalyzed === 0) totalAnalyzed = 1;
+  const darkGreenRatio = darkGreenCount / totalAnalyzed;
+  const lightGreenRatio = lightGreenCount / totalAnalyzed;
+  const greenRatio = greenCount / totalAnalyzed;
+  const orangeRatio = orangeCount / totalAnalyzed;
+  const redRatio = redCount / totalAnalyzed;
+  const purpleRatio = purpleCount / totalAnalyzed;
+  const daikonWhiteRatio = daikonWhiteCount / totalAnalyzed;
+  const yellowRatio = yellowCount / totalAnalyzed;
+  const onionRatio = onionCount / totalAnalyzed;
+  if (orangeRatio >= 0.08 && orangeRatio > greenRatio && orangeRatio > redRatio) {
+    return {
+      primaryName: "\u4EBA\u53C2",
+      category: "vegetable",
+      candidates: ["\u4EBA\u53C2", "\u7389\u306D\u304E", "\u8C5A\u8089"],
+      confidence: "high",
+      debugInfo: `Orange ratio: ${(orangeRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (darkGreenRatio >= 0.08 || greenRatio >= 0.1 && darkGreenRatio >= lightGreenRatio) {
+    return {
+      primaryName: "\u30D4\u30FC\u30DE\u30F3",
+      category: "vegetable",
+      candidates: ["\u30D4\u30FC\u30DE\u30F3", "\u8C5A\u30D0\u30E9\u8089", "\u7389\u306D\u304E"],
+      confidence: "high",
+      debugInfo: `Dark green ratio: ${(darkGreenRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (lightGreenRatio >= 0.12 && lightGreenRatio > darkGreenRatio) {
+    return {
+      primaryName: "\u30AD\u30E3\u30D9\u30C4",
+      category: "vegetable",
+      candidates: ["\u30AD\u30E3\u30D9\u30C4", "\u8C5A\u30D0\u30E9\u8089", "\u4EBA\u53C2"],
+      confidence: "high",
+      debugInfo: `Light green ratio: ${(lightGreenRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (redRatio >= 0.08) {
+    return {
+      primaryName: "\u30C8\u30DE\u30C8",
+      category: "vegetable",
+      candidates: ["\u30C8\u30DE\u30C8", "\u7389\u306D\u304E", "\u8C5A\u8089"],
+      confidence: "high",
+      debugInfo: `Red ratio: ${(redRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (purpleRatio >= 0.07) {
+    return {
+      primaryName: "\u306A\u3059",
+      category: "vegetable",
+      candidates: ["\u306A\u3059", "\u8C5A\u8089", "\u30D4\u30FC\u30DE\u30F3"],
+      confidence: "high",
+      debugInfo: `Purple ratio: ${(purpleRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (daikonWhiteRatio >= 0.28 && orangeRatio < 0.05 && greenRatio < 0.06) {
+    return {
+      primaryName: "\u5927\u6839",
+      category: "vegetable",
+      candidates: ["\u5927\u6839", "\u8C5A\u8089", "\u9577\u30CD\u30AE"],
+      confidence: "high",
+      debugInfo: `White ratio: ${(daikonWhiteRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (yellowRatio >= 0.1) {
+    return {
+      primaryName: "\u304B\u307C\u3061\u3083",
+      category: "vegetable",
+      candidates: ["\u304B\u307C\u3061\u3083", "\u8C5A\u8089", "\u7389\u306D\u304E"],
+      confidence: "high",
+      debugInfo: `Yellow ratio: ${(yellowRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (onionRatio >= 0.15) {
+    return {
+      primaryName: "\u7389\u306D\u304E",
+      category: "vegetable",
+      candidates: ["\u7389\u306D\u304E", "\u3058\u3083\u304C\u3044\u3082", "\u8C5A\u8089"],
+      confidence: "medium",
+      debugInfo: `Onion ratio: ${(onionRatio * 100).toFixed(1)}%`
+    };
+  }
+  if (greenRatio >= 0.05) {
+    return {
+      primaryName: "\u30D4\u30FC\u30DE\u30F3",
+      category: "vegetable",
+      candidates: ["\u30D4\u30FC\u30DE\u30F3", "\u30AD\u30E3\u30D9\u30C4", "\u8C5A\u8089"],
+      confidence: "medium"
+    };
+  }
+  if (daikonWhiteRatio >= 0.18) {
+    return {
+      primaryName: "\u5927\u6839",
+      category: "vegetable",
+      candidates: ["\u5927\u6839", "\u8C5A\u8089", "\u8C46\u8150"],
+      confidence: "medium"
+    };
+  }
+  return {
+    primaryName: "\u30AD\u30E3\u30D9\u30C4",
+    category: "vegetable",
+    candidates: ["\u30AD\u30E3\u30D9\u30C4", "\u4EBA\u53C2", "\u7389\u306D\u304E"],
+    confidence: "low"
+  };
+}
+
+// src/utils/recipeGenerator.ts
+function decodeBase64Bytes(base64Data) {
+  try {
+    const raw = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(raw, "base64");
+    }
+    const binaryString = atob(raw);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+function detectIngredientsFromImageBuffer(base64Data) {
+  try {
+    const buffer = decodeBase64Bytes(base64Data);
+    if (buffer.length < 200) return ["\u4EBA\u53C2", "\u5927\u6839", "\u8C5A\u8089"];
+    const classification = analyzePixelsWithObjectIsolation(buffer, 64, 64);
+    if (classification.candidates && classification.candidates.length > 0) {
+      return classification.candidates;
+    }
+    return [classification.primaryName, "\u8C5A\u8089", "\u30AD\u30E3\u30D9\u30C4"];
+  } catch (e) {
+    console.warn("Failed to sample image buffer:", e);
+    return ["\u4EBA\u53C2", "\u5927\u6839", "\u8C5A\u8089"];
+  }
+}
+function categorizeIngredient(name) {
+  const lower = name.toLowerCase();
+  if (/ハム|ベーコン|ウインナー|ソーセージ|サラダチキン|チャーシュー|焼豚|フランクフルト|豚|鶏|牛|チキン|ポーク|ビーフ|肉|ささみ|手羽|ひき肉|挽肉|ロース|バラ|ヒレ|ハラミ|タン|カルビ/.test(lower)) {
+    return "meat";
+  }
+  if (/魚|鮭|サーモン|サバ|鯖|ブリ|鰤|カツオ|鰹|マグロ|鮪|アジ|鯵|イワシ|鰯|タイ|鯛|ヒラメ|平目|タコ|蛸|イカ|烏賊|エビ|海老|カニ|蟹|アサリ|浅蜊|ホタテ|帆立|しじみ|蜆|カキ|牡蠣|海鮮|ツナ|たら|タラ|しらす|ちくわ|カニカマ|かまぼこ/.test(lower)) {
+    return "fish";
+  }
+  if (/卵|たまご|タマゴ|チーズ|牛乳|ヨーグルト|生クリーム|バター/.test(lower)) {
+    return "dairy_egg";
+  }
+  if (/そば|蕎麦|うどん|焼きそば|焼そば|ラーメン|中華麺|パスタ|スパゲッティ|そうめん|素麺|麺|ご飯|ごはん|米/.test(lower)) {
+    return "grain";
+  }
+  if (/こんにゃく|蒟蒻|コンニャク|しらたき|白滝|糸こんにゃく|板こんにゃく/.test(lower)) {
+    return "other";
+  }
+  if (/キャベツ|白菜|玉ねぎ|長ネギ|ネギ|人参|にんじん|もやし|じゃがいも|大根|トマト|ナス|なす|ピーマン|ブロッコリー|ほうれん草|小松菜|レタス|きゅうり|ごぼう|れんこん|山芋|長芋|とろろ|大和芋|しいたけ|しめじ|まいたけ|えのき|エリンギ|マッシュルーム|きのこ|アボカド|ニラ|オクラ|ズッキーニ|かぼちゃ|南瓜|アスパラ|パプリカ|豆苗|水菜|大葉|しそ/.test(lower)) {
+    return "vegetable";
+  }
+  if (/ソース|お好み焼きソース|マヨネーズ|小麦粉|薄力粉|片栗粉|醤油|味噌|みりん|酒|砂糖|塩|こしょう|胡椒|ごま油|サラダ油|オリーブ油|ポン酢|めんつゆ|オイスターソース|ケチャップ|豆板醤|甜麺醤|白だし|カレー粉|カレールー|カレー|ホワイトシチュールー|ホワイトシチュー|シチュールー|シチュー|クリームシチュー|デミグラス|デミグラスソース|ハヤシ|ハヤシライス|トマトソース|トマト缶|コンソメ|ブイヨン|ホワイトソース|鶏がら|和風だし|わさび|からし/.test(lower)) {
+    return "seasoning";
+  }
+  return "other";
+}
+function estimateNutrition(title, mains, seasonings) {
+  let calories = 140;
+  let protein = 5;
+  let fat = 5;
+  let carbs = 8;
+  let salt = 1;
+  for (const m of mains) {
+    const n = m.name;
+    if (/ウインナー|ソーセージ/.test(n)) {
+      calories += 180;
+      protein += 8;
+      fat += 16;
+      salt += 0.7;
+    } else if (/ベーコン/.test(n)) {
+      calories += 190;
+      protein += 9;
+      fat += 17;
+      salt += 0.8;
+    } else if (/ハム/.test(n)) {
+      calories += 110;
+      protein += 14;
+      fat += 6;
+      salt += 0.8;
+    } else if (/サラダチキン/.test(n)) {
+      calories += 105;
+      protein += 22;
+      fat += 1.5;
+      salt += 0.6;
+    } else if (/うどん|そば|焼きそば|ラーメン|麺/.test(n)) {
+      calories += 240;
+      carbs += 50;
+      protein += 6;
+      salt += 0.3;
+    } else if (/油揚げ|うすあげ|きざみあげ/.test(n)) {
+      calories += 110;
+      protein += 7;
+      fat += 9;
+    } else if (/厚揚げ/.test(n)) {
+      calories += 135;
+      protein += 10;
+      fat += 9;
+    } else if (/豚バラ|牛バラ|カルビ/.test(n)) {
+      calories += 220;
+      protein += 14;
+      fat += 19;
+    } else if (/豚|牛/.test(n)) {
+      calories += 170;
+      protein += 16;
+      fat += 12;
+    } else if (/鶏むね|ささみ/.test(n)) {
+      calories += 110;
+      protein += 22;
+      fat += 2;
+    } else if (/鶏/.test(n)) {
+      calories += 160;
+      protein += 18;
+      fat += 9;
+    } else if (/鮭|サバ|ブリ|魚/.test(n)) {
+      calories += 150;
+      protein += 18;
+      fat += 8;
+    } else if (/エビ|イカ|タコ|アサリ|ホタテ/.test(n)) {
+      calories += 70;
+      protein += 14;
+      fat += 1;
+    } else if (/卵/.test(n)) {
+      calories += 75;
+      protein += 6.5;
+      fat += 5.5;
+      carbs += 0.5;
+    } else if (/山芋|長芋|じゃがいも|さつまいも/.test(n)) {
+      calories += 50;
+      protein += 1.5;
+      carbs += 11;
+    } else if (/豆腐|厚揚げ|納豆/.test(n)) {
+      calories += 85;
+      protein += 8;
+      fat += 5;
+      carbs += 2;
+    } else {
+      calories += 25;
+      carbs += 4;
+    }
+  }
+  for (const s of seasonings) {
+    if (/マヨネーズ/.test(s.name)) {
+      calories += 80;
+      fat += 9;
+    } else if (/油|バター/.test(s.name)) {
+      calories += 70;
+      fat += 8;
+    } else if (/ソース|ケチャップ|みりん|砂糖|小麦粉/.test(s.name)) {
+      calories += 35;
+      carbs += 8;
+      salt += 0.4;
+    } else if (/醤油|味噌|めんつゆ|塩/.test(s.name)) {
+      salt += 0.7;
+    }
+  }
+  if (/丼|ご飯/.test(title)) {
+    calories += 250;
+    carbs += 55;
+    protein += 4;
+  }
+  return {
+    calories: Math.round(calories),
+    protein: Number(protein.toFixed(1)),
+    fat: Number(fat.toFixed(1)),
+    carbohydrates: Math.round(carbs),
+    saltEquivalent: Number(Math.min(3.5, Math.max(0.8, salt)).toFixed(1))
+  };
+}
+function generateSmartRecipes(inputIngredients = [], preferences = {}) {
+  const rawList = [
+    ...preferences.detectedHint ? [preferences.detectedHint] : [],
+    ...preferences.customIngredients || [],
+    ...inputIngredients
+  ].filter(Boolean);
+  const seen = /* @__PURE__ */ new Set();
+  const allInputs = [];
+  for (const item of rawList) {
+    const trimmed = item.trim();
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      allInputs.push(trimmed);
+    }
+  }
+  if (allInputs.length === 0) {
+    allInputs.push("\u8C5A\u30D0\u30E9\u8089", "\u30AD\u30E3\u30D9\u30C4", "\u5375");
+  }
+  const detectedIngredients = allInputs.map((name) => ({
+    name,
+    category: categorizeIngredient(name),
+    confidence: "high"
+  }));
+  const ingredientNames = allInputs.join("\u30FB");
+  const analysisComment = `\u300C${ingredientNames}\u300D\u304C\u8A8D\u8B58\u3055\u308C\u307E\u3057\u305F\uFF01\u98DF\u6750\u306E\u65E8\u5473\u3068\u6804\u990A\u30D0\u30E9\u30F3\u30B9\u3092\u6700\u5927\u9650\u306B\u6D3B\u304B\u3057\u3001\u3054\u6307\u5B9A\u306E\u8ABF\u5473\u6599\u3068\u8ABF\u7406\u6CD5\u3067\u7C21\u5358\u306B\u4F5C\u308C\u308B\u53B3\u90785\u901A\u308A\u306E\u732E\u7ACB\u3092\u3054\u63D0\u6848\u3057\u307E\u3059\u3002`;
+  const rawStaples = preferences.staples && preferences.staples.length > 0 ? preferences.staples : ["\u30B5\u30E9\u30C0\u6CB9", "\u30DE\u30E8\u30CD\u30FC\u30BA", "\u91A4\u6CB9", "\u9152", "\u307F\u308A\u3093", "\u7802\u7CD6", "\u5869\u30FB\u3053\u3057\u3087\u3046", "\u3054\u307E\u6CB9"];
+  const hasStaple = (pattern) => rawStaples.some((s) => pattern.test(s));
+  const hasSauce = hasStaple(/ソース|お好み焼きソース|ウスター|中濃/);
+  const hasMayo = hasStaple(/マヨネーズ|マヨ/);
+  const hasFlour = hasStaple(/小麦粉|薄力粉|お好み焼き粉|片栗粉/);
+  const hasOil = hasStaple(/サラダ油|油|ごま油|オリーブ/);
+  const hasSoySauce = hasStaple(/醤油|しょうゆ/);
+  const hasMiso = hasStaple(/味噌|みそ/);
+  const hasMirin = hasStaple(/みりん|味醂/);
+  const hasSake = hasStaple(/酒|料理酒/);
+  const hasSugar = hasStaple(/砂糖|さとう/);
+  const hasSaltPepper = hasStaple(/塩|こしょう|胡椒/);
+  const hasPonzu = hasStaple(/ポン酢|ぽん酢/);
+  const hasMentsuyu = hasStaple(/めんつゆ|麺つゆ/);
+  const hasOyster = hasStaple(/オイスターソース|オイスター/);
+  const hasKetchup = hasStaple(/ケチャップ/);
+  const hasDashi = hasStaple(/だし|和風顆粒だし|白だし/);
+  const hasGarlicGinger = hasStaple(/にんにく|生姜|しょうが/);
+  const hasChickenStock = hasStaple(/鶏がら|鶏ガラスープ/);
+  const hasButter = hasStaple(/バター/);
+  const hasDoubanjiang = hasStaple(/豆板醤|コチュジャン|唐辛子/);
+  const hasCurry = hasStaple(/カレー粉|カレールー/);
+  const hasConsomme = hasStaple(/コンソメ|ブイヨン/);
+  const hasTomatoStaple = hasStaple(/トマトソース|トマト缶/);
+  const hasDemiglaceStaple = hasStaple(/デミグラス/);
+  const hasWhiteStewStaple = hasStaple(/ホワイトシチュー|シチュールー/);
+  const buildSeasoningList = (idealList) => {
+    const list = [];
+    for (const item of idealList) {
+      list.push({
+        name: item.name,
+        baseAmount: item.baseAmount,
+        unit: item.unit,
+        isPantryStaple: true
+      });
+    }
+    return list;
+  };
+  const searchStr = allInputs.join(" ").toLowerCase();
+  const hasYam = /山芋|長芋|とろろ|大和芋/.test(searchStr);
+  const hasPork = /豚|ポーク|バラ|ロース/.test(searchStr);
+  const hasBeef = /牛|ビーフ|カルビ|ハラミ|タン/.test(searchStr);
+  const hasChicken = /鶏|チキン|ささみ|手羽|むね|もも/.test(searchStr);
+  const hasFish = /魚|鮭|サーモン|サバ|鯖|ブリ|鰤|カツオ|鰹|マグロ|鮪|アジ|鯵|イワシ|鰯|タイ|鯛|ヒラメ|平目|タコ|蛸|イカ|烏賊|エビ|海老|カニ|蟹|アサリ|浅蜊|ホタテ|帆立|しじみ|蜆|カキ|牡蠣/.test(searchStr);
+  const hasCabbage = /キャベツ|白菜/.test(searchStr);
+  const hasEgg = /卵|たまご/.test(searchStr);
+  const hasTofu = /豆腐|とうふ|厚揚げ|納豆/.test(searchStr);
+  const mainMeatOrProtein = allInputs.find((i) => categorizeIngredient(i) === "meat" || categorizeIngredient(i) === "fish") || "\u8C5A\u8089\uFF08\u307E\u305F\u306F\u9D8F\u8089\uFF09";
+  const primaryVeg = allInputs.find((i) => categorizeIngredient(i) === "vegetable") || allInputs[0] || "\u30AD\u30E3\u30D9\u30C4";
+  const heroIngredient = allInputs[0] || primaryVeg;
+  const secondaryIngredient = allInputs.find((i) => i !== heroIngredient) || (categorizeIngredient(heroIngredient) === "vegetable" ? mainMeatOrProtein : "\u30AD\u30E3\u30D9\u30C4");
+  const otherIngredients = allInputs.filter((i) => i !== heroIngredient && i !== secondaryIngredient);
+  let recipes = [];
+  const hasCurryMatch = /カレールー|カレー粉|カレー/.test(searchStr) || preferences.customIngredients && preferences.customIngredients.some((i) => /カレールー|カレー粉|カレー/.test(i));
+  const hasWhiteStewMatch = /ホワイトシチュー|シチュールー|クリームシチュー|シチュー/.test(searchStr) || preferences.customIngredients && preferences.customIngredients.some((i) => /ホワイトシチュー|シチュールー|シチュー/.test(i));
+  const hasDemiglaceMatch = /デミグラス|デミグラスソース|ハヤシ|ハヤシライス/.test(searchStr) || preferences.customIngredients && preferences.customIngredients.some((i) => /デミグラス|ハヤシ/.test(i));
+  const hasTomatoSauceMatch = /トマトソース|トマト缶/.test(searchStr) || preferences.customIngredients && preferences.customIngredients.some((i) => /トマトソース|トマト缶/.test(i));
+  const hasConsommeMatch = /コンソメ|ブイヨン/.test(searchStr) || preferences.customIngredients && preferences.customIngredients.some((i) => /コンソメ|ブイヨン/.test(i));
+  if (hasCurryMatch) {
+    const meatName = allInputs.find((i) => categorizeIngredient(i) === "meat") || "\u8C5A\u8089\uFF08\u307E\u305F\u306F\u9D8F\u8089\u30FB\u725B\u8089\uFF09";
+    const onionName = allInputs.find((i) => /玉ねぎ|たまねぎ/.test(i)) || "\u7389\u306D\u304E";
+    const potatoName = allInputs.find((i) => /じゃがいも|ポテト/.test(i)) || "\u3058\u3083\u304C\u3044\u3082";
+    const carrotName = allInputs.find((i) => /人参|にんじん/.test(i)) || "\u4EBA\u53C2";
+    const curryItemName = allInputs.find((i) => /カレールー|カレー粉|カレー/.test(i)) || "\u30AB\u30EC\u30FC\u30EB\u30FC";
+    const c1Mains = [
+      { name: meatName, baseAmount: 200, unit: "g", note: "\u4E00\u53E3\u5927\u306B\u30AB\u30C3\u30C8" },
+      { name: onionName, baseAmount: 1, unit: "\u500B (\u7D04200g)", note: "\u304F\u3057\u5F62\u5207\u308A\uFF08\u3057\u3063\u304B\u308A\u7092\u3081\u3066\u7518\u307F\u3092\u5F15\u304D\u51FA\u3059\uFF09" },
+      { name: potatoName, baseAmount: 2, unit: "\u500B (\u7D04250g)", note: "\u4E71\u5207\u308A\uFF08\u9762\u53D6\u308A\u3059\u308B\u3068\u716E\u5D29\u308C\u9632\u6B62\uFF09" },
+      { name: carrotName, baseAmount: 1, unit: "\u672C (\u7D04120g)", note: "\u4E71\u5207\u308A" }
+    ];
+    const c1Seasonings = buildSeasoningList([
+      { name: curryItemName, baseAmount: 4, unit: "\u76BF\u5206 (\u7D0480g)" },
+      { name: "\u6C34", baseAmount: 600, unit: "ml" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasButter ? "\u30D0\u30BF\u30FC\uFF08\u96A0\u3057\u5473\uFF09" : hasSoySauce ? "\u91A4\u6CB9\uFF08\u96A0\u3057\u5473\uFF09" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const c2Mains = [
+      { name: meatName, baseAmount: 180, unit: "g", note: "\u7C97\u307F\u3058\u3093\u5207\u308A\u307E\u305F\u306F\u3072\u304D\u8089" },
+      { name: onionName, baseAmount: 1, unit: "\u500B", note: "\u307F\u3058\u3093\u5207\u308A" },
+      { name: carrotName, baseAmount: 0.5, unit: "\u672C", note: "\u307F\u3058\u3093\u5207\u308A" },
+      { name: "\u5375\uFF08\u6E29\u7389\u307E\u305F\u306F\u751F\u5375\uFF09", baseAmount: 2, unit: "\u500B" }
+    ];
+    const c2Seasonings = buildSeasoningList([
+      { name: curryItemName, baseAmount: 2, unit: "\u76BF\u5206 (\u307E\u305F\u306F\u30AB\u30EC\u30FC\u7C89\u5927\u3055\u30581.5)" },
+      { name: hasKetchup ? "\u30B1\u30C1\u30E3\u30C3\u30D7" : "\u91A4\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasSauce ? "\u30A6\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\uFF08\u4E2D\u6FC3\u30BD\u30FC\u30B9\uFF09" : "\u91A4\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    const c3Mains = [
+      { name: "\u3046\u3069\u3093\uFF08\u8339\u3067\u9EBA\u307E\u305F\u306F\u51B7\u51CD\u9EBA\uFF09", baseAmount: 2, unit: "\u7389" },
+      { name: meatName, baseAmount: 120, unit: "g", note: "\u98DF\u3079\u3084\u3059\u304F\u30AB\u30C3\u30C8" },
+      { name: onionName, baseAmount: 0.5, unit: "\u500B", note: "\u8584\u5207\u308A" }
+    ];
+    const c3Seasonings = buildSeasoningList([
+      { name: curryItemName, baseAmount: 2, unit: "\u304B\u3051 (\u7D0440g)" },
+      { name: hasMentsuyu ? "\u3081\u3093\u3064\u3086\uFF083\u500D\u6FC3\u7E2E\uFF09" : hasSoySauce ? "\u91A4\u6CB9\u30FB\u307F\u308A\u3093" : "\u548C\u98A8\u9846\u7C92\u3060\u3057", baseAmount: 3, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u6C34", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 500, unit: "ml" },
+      { name: hasFlour ? "\u6C34\u6EB6\u304D\u7247\u6817\u7C89" : "\u7247\u6817\u7C89", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    const c4Mains = [
+      { name: "\u6E29\u304B\u3044\u3054\u98EF", baseAmount: 300, unit: "g (2\u81B3\u5206)" },
+      { name: meatName, baseAmount: 140, unit: "g" },
+      { name: onionName, baseAmount: 0.5, unit: "\u500B" },
+      { name: "\u30D4\u30B6\u7528\u3068\u308D\u3051\u308B\u30C1\u30FC\u30BA", baseAmount: 60, unit: "g" },
+      { name: "\u5375", baseAmount: 2, unit: "\u500B" }
+    ];
+    const c4Seasonings = buildSeasoningList([
+      { name: curryItemName, baseAmount: 2, unit: "\u304B\u3051 (\u307E\u305F\u306F\u30AB\u30EC\u30FC\u7C89\u5927\u3055\u30581)" },
+      { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasKetchup ? "\u30B1\u30C1\u30E3\u30C3\u30D7" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    const c5Mains = [
+      { name: meatName, baseAmount: 160, unit: "g" },
+      { name: potatoName, baseAmount: 1, unit: "\u500B", note: "\u7D30\u5207\u308A" },
+      { name: onionName, baseAmount: 0.5, unit: "\u500B", note: "\u8584\u5207\u308A" },
+      { name: carrotName, baseAmount: 0.5, unit: "\u672C", note: "\u77ED\u518A\u5207\u308A" }
+    ];
+    const c5Seasonings = buildSeasoningList([
+      { name: curryItemName, baseAmount: 1, unit: "\u304B\u3051\uFF08\u523B\u3080\uFF09\u307E\u305F\u306F\u30AB\u30EC\u30FC\u7C89\u5927\u3055\u30581" },
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u3081\u3093\u3064\u3086", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+    ]);
+    recipes = [
+      {
+        id: "rec_curry_1",
+        title: `\u3058\u3063\u304F\u308A\u716E\u8FBC\u3093\u3060\u65E8\u5473\u51DD\u7E2E\uFF01\u304A\u3046\u3061\u306E\u738B\u9053\u5B9A\u756A${meatName}\u30AB\u30EC\u30FC`,
+        subtitle: `\u30B4\u30ED\u30B4\u30ED\u91CE\u83DC\u3068\u304A\u8089\u306E\u30B3\u30AF\u304C\u6EB6\u3051\u51FA\u3059\uFF01\u8AB0\u3082\u304C\u5927\u597D\u304D\u306A\u65E5\u672C\u306E\u56FD\u6C11\u98DF`,
+        description: `\u9999\u3070\u3057\u304F\u7092\u3081\u305F${meatName}\u3068${onionName}\u306E\u7518\u307F\u3001\u30DB\u30AF\u30DB\u30AF\u306E${potatoName}\u304C\u30AB\u30EC\u30FC\u30EB\u30FC\u3068\u4E00\u4F53\u306B\u306A\u3063\u305F\u3001\u4E0D\u52D5\u306E\u4EBA\u6C17\u3092\u8A87\u308B\u738B\u9053\u30AB\u30EC\u30FC\u30E9\u30A4\u30B9\u3067\u3059\u3002`,
+        cookingTimeMinutes: 25,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u738B\u9053\u5B9A\u756A", "\u56FD\u6C11\u98DF", "\u5927\u6E80\u8DB3", "\u716E\u8FBC\u307F\u6599\u7406", "\u4F5C\u308A\u7F6E\u304D"],
+        baseServings: 2,
+        mainIngredients: c1Mains,
+        seasonings: c1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${meatName}\u3001${potatoName}\u3001${carrotName}\u306F\u4E00\u53E3\u5927\u306B\u5207\u308A\u3001${onionName}\u306F\u304F\u3057\u5F62\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u539A\u624B\u306E\u934B\u306B\u6CB9\u3092\u71B1\u3057\u3001${onionName}\u304C\u900F\u304D\u901A\u308B\u307E\u3067\u7092\u3081\u3001${meatName}\u3001${carrotName}\u3001${potatoName}\u3092\u52A0\u3048\u3066\u5168\u4F53\u306B\u6CB9\u304C\u56DE\u308B\u307E\u3067\u4E2D\u706B\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `\u6C34\u3092\u52A0\u3048\u3066\u6CB8\u9A30\u3055\u305B\u3001\u4E01\u5BE7\u306B\u30A2\u30AF\u3092\u53D6\u308A\u9664\u3044\u305F\u5F8C\u3001\u30D5\u30BF\u3092\u3057\u3066\u5F31\u706B\u301C\u4E2D\u706B\u3067\u5177\u6750\u304C\u67D4\u3089\u304B\u304F\u306A\u308B\u307E\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 15 },
+          { stepNumber: 4, instruction: `\u3044\u3063\u305F\u3093\u706B\u3092\u6B62\u3081\u3001${curryItemName}\u3092\u5272\u308A\u5165\u308C\u3066\u3088\u304F\u6EB6\u304B\u3057\u307E\u3059\u3002` },
+          { stepNumber: 5, instruction: `\u518D\u3073\u5F31\u706B\u306B\u304B\u3051\u3001\u6642\u3005\u304B\u304D\u6DF7\u305C\u306A\u304C\u3089\u3068\u308D\u307F\u304C\u3064\u304F\u307E\u3067\u716E\u8FBC\u307F\u3001\u6E29\u304B\u3044\u3054\u98EF\u306B\u304B\u3051\u3066\u5B8C\u6210\u3067\u3059\uFF01`, timerMinutes: 5 }
+        ],
+        nutritionPerServing: { calories: 580, protein: 22.4, fat: 19.8, carbohydrates: 78.5, saltEquivalent: 2.6, highlights: "\u30BF\u30FC\u30E1\u30EA\u30C3\u30AF\u3084\u30AF\u30DF\u30F3\u306A\u3069\u306E\u30B9\u30D1\u30A4\u30B9\u52B9\u679C\u3067\u65B0\u9673\u4EE3\u8B1D\u3092\u6D3B\u767A\u306B\u3057\u3001\u75B2\u52B4\u56DE\u5FA9\u3092\u5F37\u529B\u306B\u30B5\u30DD\u30FC\u30C8\u3002" },
+        chefTips: "\u7389\u306D\u304E\u3092\u3057\u3063\u304B\u308A\u7092\u3081\u308B\u3053\u3068\u3067\u7518\u307F\u3068\u30B3\u30AF\u304C\u6BB5\u9055\u3044\u306B\u30A2\u30C3\u30D7\u3057\u307E\u3059\u3002\u6700\u5F8C\u306B\u91A4\u6CB9\u3084\u30D0\u30BF\u30FC\u3092\u96A0\u3057\u5473\u306B\u5C11\u91CF\u52A0\u3048\u308B\u3068\u6DF1\u307F\u304C\u5897\u3057\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_curry_2",
+        title: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306712\u5206\uFF01\u30B9\u30D1\u30A4\u30B9\u9999\u308B\u7D76\u54C1\u30C9\u30E9\u30A4\u30AD\u30FC\u30DE\u30AB\u30EC\u30FC \u6E29\u7389\u306E\u305B`,
+        subtitle: `\u716E\u8FBC\u307F\u6642\u9593\u3044\u3089\u305A\u306E\u30B9\u30D4\u30FC\u30C9\u8ABF\u7406\uFF01\u65E8\u5473\u304C\u30AE\u30E5\u30C3\u3068\u8A70\u307E\u3063\u305F\u6FC3\u539A\u30AB\u30EC\u30FC`,
+        description: `\u307F\u3058\u3093\u5207\u308A\u306B\u3057\u305F\u91CE\u83DC\u3068${meatName}\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u9999\u3070\u3057\u304F\u7092\u3081\u716E\u306B\u3057\u305F\u3001\u30B8\u30E5\u30FC\u30B7\u30FC\u3067\u6FC3\u539A\u306A\u30C9\u30E9\u30A4\u30AB\u30EC\u30FC\u3067\u3059\u3002\u3068\u308D\u3068\u308D\u6E29\u7389\u3092\u7D61\u3081\u3066\u53EC\u3057\u4E0A\u304C\u308C\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u6642\u77ED12\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u6E29\u7389\u306E\u305B", "\u5927\u4EBA\u6C17"],
+        baseServings: 2,
+        mainIngredients: c2Mains,
+        seasonings: c2Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${onionName}\u3068${carrotName}\u306F\u307F\u3058\u3093\u5207\u308A\u306B\u3057\u3001${meatName}\u306F\u7C97\u307F\u3058\u3093\u5207\u308A\uFF08\u307E\u305F\u306F\u3072\u304D\u8089\uFF09\u306B\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001${onionName}\u3068${meatName}\u3092\u3057\u3063\u304B\u308A\u7092\u3081\u3066\u6C34\u5206\u3092\u98DB\u3070\u3057\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u523B\u3093\u3060${curryItemName}\u3001\u30B1\u30C1\u30E3\u30C3\u30D7\u3001\u30A6\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\u3092\u52A0\u3048\u3066\u4E2D\u706B\u3067\u624B\u65E9\u304F\u7092\u3081\u5408\u308F\u305B\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 4, instruction: `\u3054\u98EF\u306E\u4E0A\u306B\u76DB\u308A\u4ED8\u3051\u3001\u4E2D\u592E\u306B\u304F\u307C\u307F\u3092\u4F5C\u3063\u3066\u6E29\u7389\u3092\u306E\u305B\u3066\u5B8C\u6210\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 520, protein: 21, fat: 17.5, carbohydrates: 72, saltEquivalent: 2.3, highlights: "\u5375\u306E\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u3068\u91CE\u83DC\u306E\u30D3\u30BF\u30DF\u30F3\u304C\u52B9\u7387\u3088\u304F\u6442\u53D6\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u91CE\u83DC\u306E\u6C34\u5206\u3092\u3057\u3063\u304B\u308A\u98DB\u3070\u3057\u3066\u304B\u3089\u8ABF\u5473\u6599\u3092\u52A0\u3048\u308B\u3053\u3068\u3067\u3001\u5473\u304C\u307C\u3084\u3051\u305A\u6FC3\u539A\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_curry_3",
+        title: `\u304A\u51FA\u6C41\u304C\u9999\u308B\uFF01\u304A\u854E\u9EA6\u5C4B\u3055\u3093\u98A8 \u548C\u98A8\u51FA\u6C41\u30AB\u30EC\u30FC\u3046\u3069\u3093`,
+        subtitle: `\u30AB\u30EC\u30FC\u30EB\u30FC\u3068\u548C\u98A8\u3060\u3057\u306E\u7D76\u5999\u306A\u30CF\u30FC\u30E2\u30CB\u30FC\uFF01\u6700\u5F8C\u306E\u4E00\u6EF4\u307E\u3067\u98F2\u307F\u5E72\u3057\u305F\u3044\u4E00\u676F`,
+        description: `\u9C39\u3068\u6606\u5E03\u306E\u548C\u98A8\u3060\u3057\u306B\u30AB\u30EC\u30FC\u30EB\u30FC\u3092\u6EB6\u304B\u3057\u8FBC\u307F\u3001\u3068\u308D\u307F\u3092\u3064\u3051\u305F\u71B1\u3005\u306E\u30AB\u30EC\u30FC\u3064\u3086\u304C\u3046\u3069\u3093\u306B\u3057\u3063\u304B\u308A\u7D61\u3080\u7D76\u54C1\u3046\u3069\u3093\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u9EBA\u985E", "\u548C\u98A8\u3060\u3057", "\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB", "\u3064\u3086\u3060\u304F"],
+        baseServings: 2,
+        mainIngredients: c3Mains,
+        seasonings: c3Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u934B\u306B\u6C34\u3068\u3081\u3093\u3064\u3086\u3001\u548C\u98A8\u3060\u3057\u3092\u5165\u308C\u3066\u4E2D\u706B\u306B\u304B\u3051\u3001${meatName}\u3068${onionName}\u3092\u52A0\u3048\u3066\u716E\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 2, instruction: `\u706B\u3092\u5F31\u3081\u3066${curryItemName}\u3092\u6EB6\u304B\u3057\u5165\u308C\u3001\u6C34\u6EB6\u304D\u7247\u6817\u7C89\u3092\u52A0\u3048\u3066\u3068\u308D\u307F\u3092\u3064\u3051\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 3, instruction: `\u5225\u306E\u934B\u3067\u6E29\u3081\u305F\u3046\u3069\u3093\u3092\u5668\u306B\u3088\u305D\u3044\u3001\u71B1\u3005\u306E\u30AB\u30EC\u30FC\u3064\u3086\u3092\u305F\u3063\u3077\u308A\u6CE8\u304E\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 460, protein: 18.2, fat: 12, carbohydrates: 68, saltEquivalent: 3.2, highlights: "\u6E29\u304B\u3044\u30B9\u30FC\u30D7\u3068\u3046\u3069\u3093\u306E\u6D88\u5316\u5438\u53CE\u306E\u826F\u3055\u3067\u3001\u4F53\u3092\u82AF\u304B\u3089\u6E29\u3081\u307E\u3059\u3002" },
+        chefTips: "\u30AB\u30EC\u30FC\u30EB\u30FC\u3092\u5165\u308C\u308B\u524D\u306B\u3057\u3063\u304B\u308A\u51FA\u6C41\u3092\u716E\u7ACB\u305F\u305B\u3066\u304A\u304F\u3068\u3001\u3060\u3057\u306E\u9999\u308A\u304C\u5F15\u304D\u7ACB\u3061\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_curry_4",
+        title: `\u30C1\u30FC\u30BA\u3068\u308D\u301C\u308A\uFF01\u9999\u3070\u3057\u6FC3\u539A\u713C\u304D\u30AB\u30EC\u30FC\u30C9\u30EA\u30A2`,
+        subtitle: `\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u3053\u3093\u304C\u308A\u713C\u304F\u3060\u3051\uFF01\u9999\u3070\u3057\u3044\u7126\u3052\u76EE\u3068\u30C1\u30FC\u30BA\u304C\u305F\u307E\u3089\u306A\u3044`,
+        description: `\u3054\u98EF\u306E\u4E0A\u306B\u30AB\u30EC\u30FC\u3068\u305F\u3063\u3077\u308A\u306E\u30C1\u30FC\u30BA\u3001\u5375\u3092\u306E\u305B\u3066\u30AA\u30FC\u30D6\u30F3\u3084\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u3053\u3093\u304C\u308A\u713C\u304D\u4E0A\u3052\u305F\u9580\u53F8\u6E2F\u540D\u7269\u98A8\u306E\u3054\u3061\u305D\u3046\u30C9\u30EA\u30A2\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30C1\u30FC\u30BA", "\u30C8\u30FC\u30B9\u30BF\u30FC\u8ABF\u7406", "\u71B1\u3005\u3068\u308D\u301C\u308A", "\u3054\u3061\u305D\u3046"],
+        baseServings: 2,
+        mainIngredients: c4Mains,
+        seasonings: c4Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u8010\u71B1\u76BF\u306B\u30D0\u30BF\u30FC\u3092\u8584\u304F\u5857\u308A\u3001\u6E29\u304B\u3044\u3054\u98EF\u3092\u5E73\u3089\u306B\u6577\u304D\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30AB\u30EC\u30FC\u3092\u3054\u98EF\u306E\u4E0A\u306B\u5E83\u3052\u3001\u4E2D\u592E\u306B\u304F\u307C\u307F\u3092\u4F5C\u3063\u3066\u5375\u3092\u5272\u308A\u843D\u3068\u3057\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30D4\u30B6\u7528\u30C1\u30FC\u30BA\u3092\u305F\u3063\u3077\u308A\u6563\u3089\u3057\u3001\u30AA\u30FC\u30D6\u30F3\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u30C1\u30FC\u30BA\u306B\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u713C\u304D\u307E\u3059\u3002`, timerMinutes: 8 }
+        ],
+        nutritionPerServing: { calories: 590, protein: 24.5, fat: 22, carbohydrates: 74, saltEquivalent: 2.8, highlights: "\u30C1\u30FC\u30BA\u306E\u30AB\u30EB\u30B7\u30A6\u30E0\u3068\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u304C\u52A0\u308F\u308A\u3001\u6804\u990A\u6E80\u70B9\u3002" },
+        chefTips: "\u5375\u306E\u9EC4\u8EAB\u306B\u3064\u307E\u3088\u3046\u3058\u30671\u7B87\u6240\u7A74\u3092\u958B\u3051\u3066\u304A\u304F\u3068\u3001\u30C8\u30FC\u30B9\u30BF\u30FC\u5185\u3067\u306E\u7834\u88C2\u3092\u9632\u3052\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_curry_5",
+        title: `${meatName}\u3068\u91CE\u83DC\u306E\u9999\u3070\u3057\u30B9\u30D1\u30A4\u30B7\u30FC \u30AB\u30EC\u30FC\u30BD\u30C6\u30FC`,
+        subtitle: `\u3054\u98EF\u306B\u3082\u304A\u9152\u306B\u3082\u5408\u3046\uFF0110\u5206\u3067\u4F5C\u308C\u308B\u30B9\u30D1\u30A4\u30B7\u30FC\u306A\u7092\u3081\u304A\u304B\u305A`,
+        description: `\u523B\u3093\u3060\u30AB\u30EC\u30FC\u30EB\u30FC\u307E\u305F\u306F\u30AB\u30EC\u30FC\u7C89\u3092\u8ABF\u5473\u6599\u3068\u3057\u3066\u6D3B\u7528\u3057\u3001${meatName}\u3068\u304A\u91CE\u83DC\u306E\u7518\u307F\u3092\u5F15\u304D\u7ACB\u3066\u305F\u624B\u8EFD\u306A\u30E1\u30A4\u30F3\u7092\u3081\u7269\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u6642\u77ED10\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u304A\u5F01\u5F53\u306B\u3082", "\u3054\u98EF\u304C\u9032\u3080"],
+        baseServings: 2,
+        mainIngredients: c5Mains,
+        seasonings: c5Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001${meatName}\u3092\u7092\u3081\u3066\u8272\u304C\u5909\u308F\u3063\u305F\u3089\u91CE\u83DC\u3092\u52A0\u3048\u3066\u5F37\u706B\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u523B\u3093\u3060${curryItemName}\u3068\u91A4\u6CB9\u3092\u52A0\u3048\u3001\u5168\u4F53\u306B\u30B9\u30D1\u30A4\u30B7\u30FC\u306A\u9999\u308A\u304C\u5E83\u304C\u308B\u307E\u3067\u624B\u65E9\u304F\u7092\u3081\u5408\u308F\u305B\u307E\u3059\u3002`, timerMinutes: 2 }
+        ],
+        nutritionPerServing: { calories: 340, protein: 18, fat: 18.5, carbohydrates: 24, saltEquivalent: 1.8, highlights: "\u91CE\u83DC\u306E\u98DF\u7269\u7E4A\u7DAD\u3068\u30B9\u30D1\u30A4\u30B9\u306E\u6297\u9178\u5316\u4F5C\u7528\u3067\u514D\u75AB\u529B\u30A2\u30C3\u30D7\u3002" },
+        chefTips: "\u30EB\u30FC\u306F\u7D30\u304B\u304F\u5305\u4E01\u3067\u523B\u3093\u3067\u304A\u304F\u3068\u3001\u7092\u3081\u7269\u306B\u30C0\u30DE\u306B\u306A\u3089\u305A\u7DBA\u9E97\u306B\u7D61\u307F\u307E\u3059\u3002"
+      }
+    ];
+  } else if (hasWhiteStewMatch) {
+    const meatName = allInputs.find((i) => categorizeIngredient(i) === "meat") || "\u9D8F\u3082\u3082\u8089\uFF08\u307E\u305F\u306F\u8C5A\u8089\uFF09";
+    const onionName = allInputs.find((i) => /玉ねぎ|たまねぎ/.test(i)) || "\u7389\u306D\u304E";
+    const potatoName = allInputs.find((i) => /じゃがいも|ポテト/.test(i)) || "\u3058\u3083\u304C\u3044\u3082";
+    const carrotName = allInputs.find((i) => /人参|にんじん/.test(i)) || "\u4EBA\u53C2";
+    const stewItemName = allInputs.find((i) => /ホワイトシチュー|シチュールー|シチュー/.test(i)) || "\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC";
+    const s1Mains = [
+      { name: meatName, baseAmount: 200, unit: "g", note: "\u4E00\u53E3\u5927\u306B\u30AB\u30C3\u30C8" },
+      { name: potatoName, baseAmount: 2, unit: "\u500B", note: "\u4E71\u5207\u308A" },
+      { name: onionName, baseAmount: 1, unit: "\u500B", note: "\u304F\u3057\u5F62\u5207\u308A" },
+      { name: carrotName, baseAmount: 1, unit: "\u672C", note: "\u4E71\u5207\u308A" },
+      { name: "\u725B\u4E73", baseAmount: 150, unit: "ml", note: "\u4ED5\u4E0A\u3052\u306B\u52A0\u3048\u3066\u307E\u308D\u3084\u304B\u306B" }
+    ];
+    const s1Seasonings = buildSeasoningList([
+      { name: stewItemName, baseAmount: 4, unit: "\u76BF\u5206 (\u7D0480g)" },
+      { name: "\u6C34", baseAmount: 500, unit: "ml" },
+      { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+    ]);
+    recipes = [
+      {
+        id: "rec_stew_1",
+        title: `\u30B3\u30AF\u3068\u7518\u307F\u305F\u3063\u3077\u308A\uFF01\u304A\u8089\u3068\u30B4\u30ED\u30B4\u30ED\u91CE\u83DC\u306E\u738B\u9053\u30DB\u30EF\u30A4\u30C8\u30AF\u30EA\u30FC\u30E0\u30B7\u30C1\u30E5\u30FC`,
+        subtitle: `\u725B\u4E73\u3068\u30EB\u30FC\u3067\u3068\u308D\u301C\u308A\u30AF\u30EA\u30FC\u30DF\u30FC\uFF01\u5B50\u3069\u3082\u304B\u3089\u5927\u4EBA\u307E\u3067\u5927\u597D\u304D\u306A\u51AC\u306E\u3054\u3061\u305D\u3046`,
+        description: `\u30B8\u30E5\u30FC\u30B7\u30FC\u306A${meatName}\u3068\u7518\u307F\u305F\u3063\u3077\u308A\u306E${onionName}\u3001\u30DB\u30AF\u30DB\u30AF${potatoName}\u3092\u30DF\u30EB\u30AF\u3068\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u3067\u512A\u3057\u304F\u716E\u8FBC\u3093\u3060\u738B\u9053\u306E\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u3067\u3059\u3002`,
+        cookingTimeMinutes: 25,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u738B\u9053\u5B9A\u756A", "\u30AF\u30EA\u30FC\u30DF\u30FC", "\u3054\u3061\u305D\u3046", "\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB", "\u716E\u8FBC\u307F"],
+        baseServings: 2,
+        mainIngredients: s1Mains,
+        seasonings: s1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${meatName}\u3001${potatoName}\u3001${carrotName}\u3001${onionName}\u3092\u98DF\u3079\u3084\u3059\u3044\u4E00\u53E3\u5927\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u306B\u30D0\u30BF\u30FC\u3092\u71B1\u3057\u3001${meatName}\u3068\u91CE\u83DC\u3092\u7126\u304C\u3055\u306A\u3044\u3088\u3046\u306B\u4E2D\u5F31\u706B\u3067\u3058\u3063\u304F\u308A\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u6C34\u3092\u52A0\u3048\u3066\u6CB8\u9A30\u3055\u305B\u3001\u30A2\u30AF\u3092\u53D6\u308A\u306A\u304C\u3089\u5F31\u706B\u3067\u5177\u6750\u304C\u67D4\u3089\u304B\u304F\u306A\u308B\u307E\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 12 },
+          { stepNumber: 4, instruction: `\u3044\u3063\u305F\u3093\u706B\u3092\u6B62\u3081\u3001${stewItemName}\u3092\u6EB6\u304B\u3057\u5165\u308C\u3001\u725B\u4E73\u3092\u52A0\u3048\u3066\u5F31\u706B\u30675\u5206\u307B\u3069\u3068\u308D\u307F\u304C\u3064\u304F\u307E\u3067\u716E\u307E\u3059\u3002`, timerMinutes: 5 }
+        ],
+        nutritionPerServing: { calories: 420, protein: 21.5, fat: 18, carbohydrates: 42, saltEquivalent: 2.1, highlights: "\u725B\u4E73\u306E\u30AB\u30EB\u30B7\u30A6\u30E0\u3068\u305F\u3093\u3071\u304F\u8CEA\u3001\u6839\u83DC\u306E\u30D3\u30BF\u30DF\u30F3A\u30FBC\u3067\u6804\u990A\u30D0\u30E9\u30F3\u30B9\u6E80\u70B9\u3002" },
+        chefTips: "\u91CE\u83DC\u3092\u7092\u3081\u308B\u6642\u306F\u713C\u304D\u8272\u3092\u3064\u3051\u305A\u3001\u3058\u3063\u304F\u308A\u6C57\u3092\u304B\u304B\u305B\u308B\u3088\u3046\u306B\u7092\u3081\u308B\u3068\u771F\u3063\u767D\u3067\u7DBA\u9E97\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_stew_2",
+        title: `\u3068\u308D\u301C\u308A\u6FC3\u539A\uFF01\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u306E\u71B1\u3005\u30D1\u30F3\u30B0\u30E9\u30BF\u30F3`,
+        subtitle: `\u98DF\u30D1\u30F3\u3092\u5668\u306B\u3057\u3066\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u713C\u304F\u3060\u3051\uFF01\u30AB\u30D5\u30A7\u98A8\u306E\u8D05\u6CA2\u30EA\u30E1\u30A4\u30AF`,
+        description: `\u304F\u308A\u629C\u3044\u305F\u98DF\u30D1\u30F3\u306B\u6FC3\u539A\u306A\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u3092\u305F\u3063\u3077\u308A\u6CE8\u304E\u3001\u30C1\u30FC\u30BA\u3092\u4E57\u305B\u3066\u3053\u3093\u304C\u308A\u713C\u304D\u4E0A\u3052\u305F\u7D76\u54C1\u30B0\u30E9\u30BF\u30F3\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30C8\u30FC\u30B9\u30BF\u30FC\u8ABF\u7406", "\u30AB\u30D5\u30A7\u98A8", "\u30C1\u30FC\u30BA\u3068\u308D\u301C\u308A", "\u304A\u3057\u3083\u308C"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: "\u98DF\u30D1\u30F3\uFF08\u539A\u5207\u308A\uFF09", baseAmount: 2, unit: "\u679A" },
+          { name: meatName, baseAmount: 120, unit: "g" },
+          { name: onionName, baseAmount: 0.5, unit: "\u500B" },
+          { name: "\u30D4\u30B6\u7528\u30C1\u30FC\u30BA", baseAmount: 50, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: stewItemName, baseAmount: 2, unit: "\u304B\u3051" },
+          { name: "\u725B\u4E73", baseAmount: 150, unit: "ml" },
+          { name: "\u6C34", baseAmount: 100, unit: "ml" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u5177\u6750\u3092\u7092\u3081\u3066\u6C34\u3068\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u3001\u725B\u4E73\u3092\u52A0\u3048\u3066\u6FC3\u539A\u306A\u30B7\u30C1\u30E5\u30FC\u3092\u4F5C\u308A\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 2, instruction: `\u98DF\u30D1\u30F3\u306E\u4E2D\u592E\u3092\u30B9\u30D7\u30FC\u30F3\u3067\u62BC\u3057\u8FBC\u3093\u3067\u304F\u307C\u307F\u3092\u4F5C\u308A\u3001\u30B7\u30C1\u30E5\u30FC\u3092\u6D41\u3057\u5165\u308C\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30C1\u30FC\u30BA\u3092\u6563\u3089\u3057\u3001\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u3053\u3093\u304C\u308A\u7126\u3052\u76EE\u304C\u3064\u304F\u307E\u3067\u713C\u304D\u307E\u3059\u3002`, timerMinutes: 6 }
+        ],
+        nutritionPerServing: { calories: 480, protein: 19, fat: 20, carbohydrates: 54, saltEquivalent: 2.4, highlights: "\u9999\u3070\u3057\u3044\u30D1\u30F3\u3068\u6FC3\u539A\u306A\u30B7\u30C1\u30E5\u30FC\u304C\u30DE\u30C3\u30C1\u3057\u3066\u6E80\u8DB3\u611F\u629C\u7FA4\u3002" },
+        chefTips: "\u98DF\u30D1\u30F3\u306E\u5E95\u306B\u7A74\u304C\u958B\u304B\u306A\u3044\u3088\u3046\u3001\u30B9\u30D7\u30FC\u30F3\u306E\u80CC\u3067\u512A\u3057\u304F\u62BC\u3057\u8FBC\u3080\u306E\u304C\u30B3\u30C4\u3067\u3059\u3002"
+      },
+      {
+        id: "rec_stew_3",
+        title: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u4F5C\u308B ${meatName}\u306E\u6FC3\u539A\u30DB\u30EF\u30A4\u30C8\u30AF\u30EA\u30FC\u30E0\u716E\u8FBC\u307F`,
+        subtitle: `15\u5206\u3067\u3067\u304D\u308B\u672C\u683C\u6D0B\u98DF\u30E1\u30A4\u30F3\uFF01\u3054\u98EF\u306B\u3082\u30D0\u30B2\u30C3\u30C8\u306B\u3082\u76F8\u6027\u629C\u7FA4`,
+        description: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u9999\u3070\u3057\u304F\u30BD\u30C6\u30FC\u3057\u305F${meatName}\u306B\u30B7\u30C1\u30E5\u30FC\u30BD\u30FC\u30B9\u3092\u716E\u7D61\u3081\u305F\u3001\u6642\u77ED\u3067\u4F5C\u308C\u308B\u672C\u683C\u30AF\u30EA\u30FC\u30E0\u716E\u8FBC\u307F\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u6642\u77ED15\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u3054\u3061\u305D\u3046\u30E1\u30A4\u30F3", "\u6FC3\u539A"],
+        baseServings: 2,
+        mainIngredients: s1Mains.slice(0, 4),
+        seasonings: s1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${meatName}\u306F\u4E00\u53E3\u5927\u306B\u5207\u308A\u3001\u5869\u3053\u3057\u3087\u3046\u3092\u3075\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067${meatName}\u3092\u76AE\u76EE\u304B\u3089\u9999\u3070\u3057\u304F\u713C\u304D\u3001\u91CE\u83DC\u3092\u52A0\u3048\u3066\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `\u6C34\u3068\u30EB\u30FC\u3001\u725B\u4E73\u3092\u52A0\u3048\u3066\u30D5\u30BF\u3092\u3057\u3001\u4E2D\u5F31\u706B\u3067\u716E\u8A70\u3081\u307E\u3059\u3002`, timerMinutes: 6 }
+        ],
+        nutritionPerServing: { calories: 390, protein: 22, fat: 17.5, carbohydrates: 34, saltEquivalent: 2, highlights: "\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u304C\u305F\u3063\u3077\u308A\u6442\u308C\u308B\u30D8\u30EB\u30B7\u30FC\u306A\u3054\u3061\u305D\u3046\u3002" },
+        chefTips: "\u304A\u8089\u3092\u3057\u3063\u304B\u308A\u713C\u304D\u4ED8\u3051\u3066\u304B\u3089\u716E\u8FBC\u3080\u3068\u3001\u9999\u3070\u3057\u3055\u304C\u30BD\u30FC\u30B9\u306B\u79FB\u3063\u3066\u30D7\u30ED\u306E\u5473\u306B\uFF01"
+      },
+      {
+        id: "rec_stew_4",
+        title: `\u3068\u308D\u3068\u308D\u5375\u306E\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u30AA\u30E0\u30E9\u30A4\u30B9`,
+        subtitle: `\u30B1\u30C1\u30E3\u30C3\u30D7\u30E9\u30A4\u30B9\u306E\u9178\u5473\u3068\u30AF\u30EA\u30FC\u30E0\u30B7\u30C1\u30E5\u30FC\u306E\u7518\u307F\u304C\u7D76\u54C1\u30B3\u30E9\u30DC`,
+        description: `\u3075\u308F\u3068\u308D\u5375\u3067\u5305\u3093\u3060\u30C1\u30AD\u30F3\u30E9\u30A4\u30B9\u306B\u3001\u71B1\u3005\u306E\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u3092\u305F\u3063\u3077\u308A\u304B\u3051\u305F\u6D0B\u98DF\u5C4B\u3055\u3093\u306E\u4EBA\u6C17\u30E1\u30CB\u30E5\u30FC\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30AA\u30E0\u30E9\u30A4\u30B9", "\u6D0B\u98DF\u5C4B\u3055\u3093", "\u5927\u4EBA\u6C17", "\u30EF\u30F3\u30D7\u30EC\u30FC\u30C8"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: "\u6E29\u304B\u3044\u3054\u98EF", baseAmount: 300, unit: "g" },
+          { name: "\u5375", baseAmount: 3, unit: "\u500B" },
+          { name: meatName, baseAmount: 100, unit: "g" },
+          { name: onionName, baseAmount: 0.5, unit: "\u500B" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: stewItemName, baseAmount: 2, unit: "\u304B\u3051" },
+          { name: "\u725B\u4E73", baseAmount: 150, unit: "ml" },
+          { name: hasKetchup ? "\u30B1\u30C1\u30E3\u30C3\u30D7" : "\u30BD\u30FC\u30B9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5C0F\u934B\u3067\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u3068\u725B\u4E73\u3001\u6C34\uFF08100ml\uFF09\u3092\u716E\u6EB6\u304B\u3057\u3066\u30B7\u30C1\u30E5\u30FC\u30BD\u30FC\u30B9\u3092\u4F5C\u308A\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u5177\u6750\u3068\u3054\u98EF\u3001\u30B1\u30C1\u30E3\u30C3\u30D7\u3092\u7092\u3081\u3066\u30C1\u30AD\u30F3\u30E9\u30A4\u30B9\u3092\u4F5C\u308A\u3001\u5668\u306B\u76DB\u308A\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u534A\u719F\u30AA\u30E0\u30EC\u30C4\u3092\u713C\u304D\u3001\u30E9\u30A4\u30B9\u306B\u306E\u305B\u3066\u30B7\u30C1\u30E5\u30FC\u30BD\u30FC\u30B9\u3092\u305F\u3063\u3077\u308A\u304B\u3051\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 530, protein: 20.5, fat: 19, carbohydrates: 68, saltEquivalent: 2.4, highlights: "\u5375\u3068\u304A\u8089\u306E\u305F\u3093\u3071\u304F\u8CEA\u306B\u3001\u70AD\u6C34\u5316\u7269\u304C\u52B9\u7387\u3088\u304F\u88DC\u7D66\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u5375\u306F\u5F37\u706B\u3067\u4E00\u6C17\u306B\u534A\u719F\u306B\u713C\u304D\u4E0A\u3052\u308B\u3068\u3001\u3075\u308F\u3068\u308D\u98DF\u611F\u306B\u306A\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_stew_5",
+        title: `\u307B\u3063\u3053\u308A\u6E29\u307E\u308B \u5177\u3060\u304F\u3055\u3093\u98DF\u3079\u308B\u30DB\u30EF\u30A4\u30C8\u30DF\u30EB\u30AF\u30B9\u30FC\u30D7`,
+        subtitle: `\u512A\u3057\u3044\u30DF\u30EB\u30AF\u306E\u30B3\u30AF\u3067\u671D\u98DF\u306B\u3082\u591C\u98DF\u306B\u3082\uFF01\u91CE\u83DC\u306E\u6804\u990A\u304C\u305F\u3063\u3077\u308A`,
+        description: `\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u3092\u8EFD\u3084\u304B\u306B\u6EB6\u304B\u3057\u3066\u30B9\u30FC\u30D7\u4ED5\u7ACB\u3066\u306B\u3057\u305F\u3001\u8EAB\u4F53\u306B\u512A\u3057\u3044\u30DF\u30EB\u30AF\u30B9\u30FC\u30D7\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30DF\u30EB\u30AF\u30B9\u30FC\u30D7", "\u512A\u3057\u3044\u5473\u308F\u3044", "\u6E29\u6D3B", "\u671D\u98DF\u306B\u3082"],
+        baseServings: 2,
+        mainIngredients: s1Mains.slice(0, 4),
+        seasonings: s1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u91CE\u83DC\u3068\u304A\u8089\u3092\u5C0F\u3055\u3081\u306E\u89D2\u5207\u308A\u306B\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u3067\u7092\u3081\u3066\u6C34\u3092\u52A0\u3048\u3001\u67D4\u3089\u304B\u304F\u306A\u308B\u307E\u3067\u716E\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `\u30EB\u30FC\u30921\u301C2\u304B\u3051\u3068\u725B\u4E73\u3092\u52A0\u3048\u3066\u8EFD\u304F\u3068\u308D\u307F\u304C\u3064\u304F\u307E\u3067\u6E29\u3081\u307E\u3059\u3002`, timerMinutes: 3 }
+        ],
+        nutritionPerServing: { calories: 280, protein: 15, fat: 12, carbohydrates: 28, saltEquivalent: 1.6, highlights: "\u6D88\u5316\u306B\u826F\u304F\u3001\u51B7\u3048\u305F\u4F53\u3092\u6E29\u3081\u308B\u30D8\u30EB\u30B7\u30FC\u306A\u30B9\u30FC\u30D7\u3067\u3059\u3002" },
+        chefTips: "\u91CE\u83DC\u3092\u5C0F\u3055\u3081\u306B\u5207\u308B\u3053\u3068\u3067\u3001\u706B\u901A\u308A\u304C\u65E9\u304F\u306A\u308A10\u5206\u7A0B\u5EA6\u3067\u5B8C\u6210\u3057\u307E\u3059\u3002"
+      }
+    ];
+  } else if (hasDemiglaceMatch) {
+    const beefOrMeat = allInputs.find((i) => categorizeIngredient(i) === "meat") || "\u725B\u3053\u307E\u5207\u308C\u8089\uFF08\u307E\u305F\u306F\u8C5A\u8089\uFF09";
+    const onionName = allInputs.find((i) => /玉ねぎ|たまねぎ/.test(i)) || "\u7389\u306D\u304E";
+    const shimejiName = allInputs.find((i) => /しめじ|きのこ|マッシュルーム/.test(i)) || "\u3057\u3081\u3058\uFF08\u30DE\u30C3\u30B7\u30E5\u30EB\u30FC\u30E0\uFF09";
+    recipes = [
+      {
+        id: "rec_demi_1",
+        title: `\u6FC3\u539A\u30B3\u30AF\u65E8\uFF01\u6D0B\u98DF\u5C4B\u3055\u3093\u306E\u738B\u9053\u30C7\u30DF\u30B0\u30E9\u30B9\u30CF\u30E4\u30B7\u30E9\u30A4\u30B9`,
+        subtitle: `\u3058\u3063\u304F\u308A\u7092\u3081\u305F\u7389\u306D\u304E\u3068\u304A\u8089\u306E\u65E8\u5473\uFF01\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u306E\u8D05\u6CA2\u306A\u5473\u308F\u3044`,
+        description: `\u9999\u3070\u3057\u304F\u7092\u3081\u305F${beefOrMeat}\u3068\u7518\u307F\u305F\u3063\u3077\u308A\u306E${onionName}\u3001\u304D\u306E\u3053\u306B\u6FC3\u539A\u306A\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u304C\u7D61\u3080\u3001\u672C\u683C\u6D0B\u98DF\u306E\u30CF\u30E4\u30B7\u30E9\u30A4\u30B9\u3067\u3059\u3002`,
+        cookingTimeMinutes: 20,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u738B\u9053\u5B9A\u756A", "\u30C7\u30DF\u30B0\u30E9\u30B9", "\u3054\u3061\u305D\u3046", "\u6D0B\u98DF\u5C4B\u3055\u3093", "\u5927\u4EBA\u6C17"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: beefOrMeat, baseAmount: 200, unit: "g", note: "\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308B" },
+          { name: onionName, baseAmount: 1.5, unit: "\u500B", note: "\u8584\u5207\u308A\uFF08\u3057\u3063\u304B\u308A\u7092\u3081\u3066\u30B3\u30AF\u3092\u51FA\u3059\uFF09" },
+          { name: shimejiName, baseAmount: 1, unit: "\u30D1\u30C3\u30AF (\u7D04100g)", note: "\u77F3\u3065\u304D\u3092\u53D6\u3063\u3066\u5C0F\u623F\u306B\u5206\u3051\u308B" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: "\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\uFF08\u7F36/\u30D1\u30C3\u30AF\uFF09", baseAmount: 1, unit: "\u7F36 (\u7D04290g)" },
+          { name: "\u8D64\u30EF\u30A4\u30F3\uFF08\u307E\u305F\u306F\u6599\u7406\u9152\uFF09", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+          { name: "\u6C34", baseAmount: 150, unit: "ml" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+          { name: hasKetchup ? "\u30B1\u30C1\u30E3\u30C3\u30D7" : "\u91A4\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u30D0\u30BF\u30FC\u3092\u71B1\u3057\u3001${onionName}\u304C\u304D\u3064\u306D\u8272\u306B\u306A\u308B\u307E\u3067\u4E2D\u706B\u3067\u3058\u3063\u304F\u308A\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 6 },
+          { stepNumber: 2, instruction: `${beefOrMeat}\u3068${shimejiName}\u3092\u52A0\u3048\u3001\u8089\u306E\u8272\u304C\u5909\u308F\u308B\u307E\u3067\u7092\u3081\u3001\u8D64\u30EF\u30A4\u30F3\uFF08\u9152\uFF09\u3092\u56DE\u3057\u5165\u308C\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3001\u6C34\u3001\u30B1\u30C1\u30E3\u30C3\u30D7\u3092\u52A0\u3048\u3001\u5F31\u706B\u3067\u6642\u3005\u6DF7\u305C\u306A\u304C\u3089\u3068\u308D\u307F\u304C\u3064\u304F\u307E\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 8 },
+          { stepNumber: 4, instruction: `\u6E29\u304B\u3044\u3054\u98EF\u306E\u4E0A\u306B\u304B\u3051\u3066\u5B8C\u6210\u3067\u3059\uFF01` }
+        ],
+        nutritionPerServing: { calories: 560, protein: 23, fat: 20.5, carbohydrates: 69, saltEquivalent: 2.2, highlights: "\u725B\u8089\u306E\u9244\u5206\u3068\u30D3\u30BF\u30DF\u30F3B12\u3001\u30C7\u30DF\u30B0\u30E9\u30B9\u306E\u8C4A\u304B\u306A\u30B3\u30AF\u3067\u30B9\u30BF\u30DF\u30CA\u88DC\u7D66\u306B\u6700\u9069\u3002" },
+        chefTips: "\u7389\u306D\u304E\u3092\u3057\u3063\u304B\u308A\u7092\u3081\u3066\u7518\u307F\u3092\u5F15\u304D\u51FA\u3059\u306E\u304C\u3001\u30EC\u30B9\u30C8\u30E9\u30F3\u306E\u3088\u3046\u306A\u6DF1\u3044\u30B3\u30AF\u3092\u51FA\u3059\u6700\u5927\u306E\u79D8\u8A23\u3067\u3059\u3002"
+      },
+      {
+        id: "rec_demi_2",
+        title: `\u7279\u88FD\u30C7\u30DF\u30B0\u30E9\u30B9\u4ED5\u7ACB\u3066\u306E \u6FC3\u539A\u716E\u8FBC\u307F\u30CF\u30F3\u30D0\u30FC\u30B0 / \u30BD\u30C6\u30FC`,
+        subtitle: `\u8089\u6C41\u3068\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u304C\u4E00\u4F53\u306B\uFF01\u3075\u3063\u304F\u3089\u30B8\u30E5\u30FC\u30B7\u30FC\u306A\u3054\u3061\u305D\u3046\u304A\u304B\u305A`,
+        description: `\u8868\u9762\u3092\u9999\u3070\u3057\u304F\u713C\u3044\u305F\u304A\u8089\u3092\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3067\u3058\u3063\u304F\u308A\u716E\u8FBC\u307F\u3001\u4E2D\u307E\u3067\u65E8\u5473\u3092\u9589\u3058\u8FBC\u3081\u305F\u7D76\u54C1\u304A\u304B\u305A\u3067\u3059\u3002`,
+        cookingTimeMinutes: 20,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u716E\u8FBC\u307F\u30CF\u30F3\u30D0\u30FC\u30B0", "\u3054\u3061\u305D\u3046", "\u8089\u6C41\u305F\u3063\u3077\u308A", "\u5927\u4EBA\u6C17"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: beefOrMeat, baseAmount: 220, unit: "g" },
+          { name: onionName, baseAmount: 1, unit: "\u500B" },
+          { name: shimejiName, baseAmount: 1, unit: "\u30D1\u30C3\u30AF" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: "\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9", baseAmount: 150, unit: "g" },
+          { name: "\u6C34", baseAmount: 100, unit: "ml" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+          { name: hasKetchup ? "\u30B1\u30C1\u30E3\u30C3\u30D7" : "\u91A4\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u304A\u8089\u3068\u91CE\u83DC\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u9999\u3070\u3057\u304F\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u713C\u304D\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 2, instruction: `\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3001\u6C34\u3001\u8ABF\u5473\u6599\u3092\u52A0\u3048\u3001\u30D5\u30BF\u3092\u3057\u3066\u5F31\u706B\u3067\u3058\u3063\u304F\u308A\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 10 },
+          { stepNumber: 3, instruction: `\u30D5\u30BF\u3092\u53D6\u308A\u3001\u30BD\u30FC\u30B9\u306B\u3068\u308D\u307F\u304C\u3064\u304F\u307E\u3067\u716E\u8A70\u3081\u3066\u304A\u76BF\u306B\u76DB\u308A\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 450, protein: 24, fat: 22, carbohydrates: 26, saltEquivalent: 2.1, highlights: "\u9AD8\u305F\u3093\u3071\u304F\u3067\u9244\u5206\u8C4A\u5BCC\u3002\u80B2\u3061\u76DB\u308A\u306E\u5B50\u3069\u3082\u306B\u3082\u5927\u4EBA\u6C17\u3067\u3059\u3002" },
+        chefTips: "\u30BD\u30FC\u30B9\u3092\u716E\u8A70\u3081\u308B\u6642\u306F\u7126\u3052\u4ED8\u304B\u306A\u3044\u3088\u3046\u5F31\u706B\u3067\u3086\u3063\u304F\u308A\u30D8\u30E9\u3067\u6DF7\u305C\u3066\u304F\u3060\u3055\u3044\u3002"
+      },
+      {
+        id: "rec_demi_3",
+        title: `\u6D0B\u98DF\u5C4B\u3055\u3093\u306E\u6975\u4E0A \u30C7\u30DF\u30B0\u30E9\u30B9\u30AA\u30E0\u30E9\u30A4\u30B9`,
+        subtitle: `\u3075\u308F\u3068\u308D\u5375\u3068\u6FC3\u539A\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u306E\u8D05\u6CA2\u306A\u30DE\u30EA\u30A2\u30FC\u30B8\u30E5`,
+        description: `\u30D0\u30BF\u30FC\u9999\u308B\u30E9\u30A4\u30B9\u306B\u3075\u308F\u3075\u308F\u534A\u719F\u30AA\u30E0\u30EC\u30C4\u3092\u306E\u305B\u3001\u6E29\u3081\u305F\u6FC3\u539A\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3092\u305F\u3063\u3077\u308A\u304B\u3051\u305F\u8D05\u6CA2\u306A\u4E00\u54C1\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30AA\u30E0\u30E9\u30A4\u30B9", "\u3075\u308F\u3068\u308D", "\u30C7\u30DF\u30B0\u30E9\u30B9", "\u30AB\u30D5\u30A7\u98A8"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: "\u6E29\u304B\u3044\u3054\u98EF", baseAmount: 300, unit: "g" },
+          { name: "\u5375", baseAmount: 3, unit: "\u500B" },
+          { name: beefOrMeat, baseAmount: 100, unit: "g" },
+          { name: onionName, baseAmount: 0.5, unit: "\u500B" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: "\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9", baseAmount: 150, unit: "g" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+          { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5C0F\u934B\u3067\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3092\u6E29\u3081\u3066\u304A\u304D\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u5177\u6750\u3068\u3054\u98EF\u3092\u30D0\u30BF\u30FC\u3067\u9999\u3070\u3057\u304F\u7092\u3081\u3001\u5668\u306B\u76DB\u308A\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u6EB6\u304D\u5375\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u624B\u65E9\u304F\u534A\u719F\u306B\u713C\u304D\u3001\u3054\u98EF\u306E\u4E0A\u306B\u306E\u305B\u3066\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3092\u304B\u3051\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 540, protein: 21, fat: 19.5, carbohydrates: 70, saltEquivalent: 2.3, highlights: "\u5375\u306E\u30D3\u30BF\u30DF\u30F3\u3068\u30C7\u30DF\u30B0\u30E9\u30B9\u306E\u30A8\u30CD\u30EB\u30AE\u30FC\u3067\u5143\u6C17\u304C\u51FA\u308B\u4E00\u76BF\u3002" },
+        chefTips: "\u30BD\u30FC\u30B9\u306B\u5C11\u3057\u30D0\u30BF\u30FC\u3092\u6EB6\u304B\u3059\u3068\u3001\u30C4\u30E4\u3068\u98A8\u5473\u304C\u4E00\u5C64\u5F15\u304D\u7ACB\u3061\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_demi_4",
+        title: `\u30C7\u30DF\u30B0\u30E9\u30B9\u3068\u30C1\u30FC\u30BA\u306E\u6FC3\u539A \u713C\u304D\u30AB\u30EC\u30FC\u30C9\u30EA\u30A2\u98A8\u30B0\u30E9\u30BF\u30F3`,
+        subtitle: `\u3042\u3064\u3042\u3064\u30C1\u30FC\u30BA\u3068\u30C7\u30DF\u30B0\u30E9\u30B9\u304C\u9999\u3070\u3057\u3044\uFF01\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u7C21\u5358`,
+        description: `\u3054\u98EF\u306E\u4E0A\u306B\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3068\u304A\u8089\u3001\u3068\u308D\u3051\u308B\u30C1\u30FC\u30BA\u3092\u306E\u305B\u3066\u9999\u3070\u3057\u304F\u713C\u304D\u4E0A\u3052\u305F\u30B0\u30E9\u30BF\u30F3\u98A8\u30C9\u30EA\u30A2\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30C8\u30FC\u30B9\u30BF\u30FC\u8ABF\u7406", "\u30C1\u30FC\u30BA", "\u6FC3\u539A", "\u7C21\u5358"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: "\u6E29\u304B\u3044\u3054\u98EF", baseAmount: 300, unit: "g" },
+          { name: beefOrMeat, baseAmount: 120, unit: "g" },
+          { name: "\u30D4\u30B6\u7528\u30C1\u30FC\u30BA", baseAmount: 60, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: "\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9", baseAmount: 150, unit: "g" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u304A\u8089\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u7092\u3081\u3066\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3068\u5408\u308F\u305B\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 2, instruction: `\u8010\u71B1\u76BF\u306B\u3054\u98EF\u3092\u6577\u304D\u3001\u30C7\u30DF\u30B0\u30E9\u30B9\u30DF\u30FC\u30C8\u3092\u306E\u305B\u3066\u30C1\u30FC\u30BA\u3092\u6563\u3089\u3057\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u30C1\u30FC\u30BA\u304C\u6EB6\u3051\u3066\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u713C\u304D\u307E\u3059\u3002`, timerMinutes: 7 }
+        ],
+        nutritionPerServing: { calories: 510, protein: 22, fat: 19, carbohydrates: 62, saltEquivalent: 2.2, highlights: "\u30C1\u30FC\u30BA\u306E\u30AB\u30EB\u30B7\u30A6\u30E0\u3068\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u3067\u6804\u990A\u88DC\u7D66\u3002" },
+        chefTips: "\u3054\u98EF\u306B\u8EFD\u304F\u30D0\u30BF\u30FC\u3068\u5869\u30B3\u30B7\u30E7\u30A6\u3092\u6DF7\u305C\u3066\u304A\u304F\u3068\u3001\u3055\u3089\u306B\u7F8E\u5473\u3057\u304F\u306A\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_demi_5",
+        title: `${beefOrMeat}\u3068${onionName}\u306E\u30C7\u30DF\u30B0\u30E9\u30B9\u30B3\u30AF\u65E8\u30BD\u30C6\u30FC`,
+        subtitle: `10\u5206\u3067\u4F5C\u308C\u308B\u6975\u4E0A\u304A\u304B\u305A\uFF01\u304A\u5F01\u5F53\u306E\u304A\u304B\u305A\u306B\u3082\u3074\u3063\u305F\u308A`,
+        description: `\u304A\u8089\u3068\u7389\u306D\u304E\u3092\u5F37\u706B\u3067\u9999\u3070\u3057\u304F\u30BD\u30C6\u30FC\u3057\u3001\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3092\u7D61\u3081\u305F\u30B9\u30D4\u30FC\u30C7\u30A3\u30FC\u306A\u304A\u304B\u305A\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u6642\u77ED10\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u3054\u98EF\u304C\u9032\u3080", "\u304A\u5F01\u5F53"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: beefOrMeat, baseAmount: 200, unit: "g" },
+          { name: onionName, baseAmount: 1, unit: "\u500B" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: "\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9", baseAmount: 4, unit: "\u5927\u3055\u3058" },
+          { name: hasSoySauce ? "\u91A4\u6CB9" : "\u5869", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+          { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u7389\u306D\u304E\u306F\u304F\u3057\u5F62\u306B\u5207\u308A\u3001\u304A\u8089\u3092\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u7389\u306D\u304E\u3068\u304A\u8089\u3092\u5F37\u706B\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u3068\u91A4\u6CB9\u3092\u52A0\u3048\u3066\u624B\u65E9\u304F\u7092\u3081\u7D61\u3081\u307E\u3059\u3002`, timerMinutes: 1 }
+        ],
+        nutritionPerServing: { calories: 360, protein: 21, fat: 18, carbohydrates: 20, saltEquivalent: 1.8, highlights: "\u77ED\u6642\u9593\u8ABF\u7406\u3067\u8089\u306E\u30B8\u30E5\u30FC\u30B7\u30FC\u3055\u3092\u30AD\u30FC\u30D7\u3002" },
+        chefTips: "\u4ED5\u4E0A\u3052\u306B\u5F37\u706B\u3067\u30B5\u30C3\u3068\u7167\u308A\u3092\u51FA\u3059\u306E\u304C\u30DD\u30A4\u30F3\u30C8\u3067\u3059\u3002"
+      }
+    ];
+  } else if (hasTomatoSauceMatch) {
+    const chickenOrMeat = allInputs.find((i) => categorizeIngredient(i) === "meat") || "\u9D8F\u3082\u3082\u8089\uFF08\u307E\u305F\u306F\u8C5A\u8089\uFF09";
+    const onionName = allInputs.find((i) => /玉ねぎ|たまねぎ/.test(i)) || "\u7389\u306D\u304E";
+    const tomatoItemName = allInputs.find((i) => /トマトソース|トマト缶|トマト/.test(i)) || "\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\uFF08\u30C8\u30DE\u30C8\u7F36\uFF09";
+    recipes = [
+      {
+        id: "rec_tomato_1",
+        title: `\u3058\u3063\u304F\u308A\u716E\u8FBC\u3093\u3060 \u9D8F\u8089\u3068\u3054\u308D\u3054\u308D\u91CE\u83DC\u306E\u738B\u9053\u30AB\u30C1\u30E3\u30C8\u30FC\u30E9\uFF08\u5B8C\u719F\u30C8\u30DE\u30C8\u716E\u8FBC\u307F\uFF09`,
+        subtitle: `\u5B8C\u719F\u30C8\u30DE\u30C8\u306E\u723D\u3084\u304B\u306A\u9178\u5473\u3068\u304A\u8089\u306E\u65E8\u5473\uFF01\u30AA\u30EA\u30FC\u30D6\u6CB9\u3068\u30CF\u30FC\u30D6\u9999\u308B\u30A4\u30BF\u30EA\u30A2\u30F3`,
+        description: `\u9999\u3070\u3057\u304F\u713C\u304D\u8272\u3092\u3064\u3051\u305F${chickenOrMeat}\u3068${onionName}\u3092\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u3067\u30B3\u30C8\u30B3\u30C8\u716E\u8FBC\u307F\u3001\u7D20\u6750\u306E\u65E8\u5473\u3092\u51DD\u7E2E\u3055\u305B\u305F\u738B\u9053\u30A4\u30BF\u30EA\u30A2\u30F3\u716E\u8FBC\u307F\u3067\u3059\u3002`,
+        cookingTimeMinutes: 20,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u738B\u9053\u5B9A\u756A", "\u30C8\u30DE\u30C8\u716E\u8FBC\u307F", "\u30AB\u30C1\u30E3\u30C8\u30FC\u30E9", "\u9AD8\u305F\u3093\u3071\u304F", "\u30D8\u30EB\u30B7\u30FC"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: chickenOrMeat, baseAmount: 250, unit: "g", note: "\u4E00\u53E3\u5927\u306B\u30AB\u30C3\u30C8" },
+          { name: onionName, baseAmount: 1, unit: "\u500B", note: "\u8584\u5207\u308A" },
+          { name: "\u30D4\u30FC\u30DE\u30F3\u307E\u305F\u306F\u3057\u3081\u3058", baseAmount: 2, unit: "\u500B", note: "\u4E71\u5207\u308A" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: tomatoItemName, baseAmount: 1, unit: "\u7F36 (\u7D04400g)" },
+          { name: hasConsomme ? "\u30B3\u30F3\u30BD\u30E1" : "\u548C\u98A8\u9846\u7C92\u3060\u3057", baseAmount: 1, unit: "\u500B (\u9846\u7C92\u5C0F\u3055\u30581.5)" },
+          { name: hasOil ? "\u30AA\u30EA\u30FC\u30D6\u6CB9\uFF08\u307E\u305F\u306F\u30B5\u30E9\u30C0\u6CB9\uFF09" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+          { name: hasGarlicGinger ? "\u304A\u308D\u3057\u306B\u3093\u306B\u304F" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+          { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `${chickenOrMeat}\u306F\u4E00\u53E3\u5927\u306B\u5207\u308A\u3001\u5869\u3053\u3057\u3087\u3046\u3092\u8EFD\u304F\u3075\u308A\u307E\u3059\u3002\u91CE\u83DC\u3082\u98DF\u3079\u3084\u3059\u304F\u30AB\u30C3\u30C8\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u306B\u30AA\u30EA\u30FC\u30D6\u6CB9\u3068\u306B\u3093\u306B\u304F\u3092\u71B1\u3057\u3001${chickenOrMeat}\u306E\u76AE\u76EE\u3092\u30D1\u30EA\u30C3\u3068\u9999\u3070\u3057\u304F\u713C\u304D\u3001\u91CE\u83DC\u3092\u52A0\u3048\u3066\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `${tomatoItemName}\u3068\u30B3\u30F3\u30BD\u30E1\u3092\u52A0\u3048\u3001\u30D5\u30BF\u3092\u3057\u3066\u5F31\u706B\u3067\u30B3\u30C8\u30B3\u30C8\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 12 },
+          { stepNumber: 4, instruction: `\u30D5\u30BF\u3092\u53D6\u308A\u3001\u30BD\u30FC\u30B9\u304C\u3068\u308D\u308A\u3068\u3059\u308B\u307E\u3067\u716E\u8A70\u3081\u3066\u5B8C\u6210\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 360, protein: 25, fat: 16, carbohydrates: 18, saltEquivalent: 2, highlights: "\u30C8\u30DE\u30C8\u306E\u30EA\u30B3\u30D4\u30F3\u306B\u3088\u308B\u6297\u9178\u5316\u4F5C\u7528\u3068\u3001\u9D8F\u8089\u306E\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u3067\u7F8E\u808C\u3068\u75B2\u52B4\u56DE\u5FA9\u306B\u52B9\u679C\u7684\u3002" },
+        chefTips: "\u9D8F\u8089\u306E\u76AE\u76EE\u3092\u3057\u3063\u304B\u308A\u713C\u304D\u4ED8\u3051\u3066\u304B\u3089\u30C8\u30DE\u30C8\u3092\u52A0\u3048\u308B\u3053\u3068\u3067\u3001\u4F59\u5206\u306A\u6CB9\u304C\u843D\u3061\u3066\u9999\u3070\u3057\u3055\u304C\u500D\u5897\u3057\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_tomato_2",
+        title: `\u306B\u3093\u306B\u304F\u9999\u308B \u6FC3\u539A\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u30D1\u30B9\u30BF`,
+        subtitle: `\u30D5\u30E9\u30A4\u30D1\u30F31\u3064\u3067\u7D76\u54C1\uFF01\u30C8\u30DE\u30C8\u306E\u7518\u307F\u3068\u65E8\u5473\u304C\u9EBA\u306B\u7D61\u3080\u672C\u683C\u6D3E`,
+        description: `\u306B\u3093\u306B\u304F\u3068\u30AA\u30EA\u30FC\u30D6\u6CB9\u306E\u9999\u308A\u3092\u79FB\u3057\u305F\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u306B\u30D1\u30B9\u30BF\u3092\u7D61\u3081\u305F\u3001\u30B7\u30F3\u30D7\u30EB\u306A\u304C\u3089\u5965\u6DF1\u3044\u5473\u308F\u3044\u306E\u5B9A\u756A\u30D1\u30B9\u30BF\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30D1\u30B9\u30BF", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u306B\u3093\u306B\u304F\u9999\u308B", "\u30A4\u30BF\u30EA\u30A2\u30F3"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: "\u30D1\u30B9\u30BF\uFF08\u30B9\u30D1\u30B2\u30C3\u30C6\u30A3\uFF09", baseAmount: 180, unit: "g" },
+          { name: chickenOrMeat, baseAmount: 120, unit: "g" },
+          { name: onionName, baseAmount: 0.5, unit: "\u500B" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: tomatoItemName, baseAmount: 200, unit: "g" },
+          { name: hasConsomme ? "\u30B3\u30F3\u30BD\u30E1" : "\u5869", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+          { name: hasOil ? "\u30AA\u30EA\u30FC\u30D6\u6CB9" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u30D1\u30B9\u30BF\u3092\u305F\u3063\u3077\u308A\u306E\u304A\u6E6F\u3067\u8868\u793A\u6642\u9593\u3088\u308A1\u5206\u77ED\u304F\u8339\u3067\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u5177\u6750\u3092\u7092\u3081\u3001${tomatoItemName}\u3068\u30B3\u30F3\u30BD\u30E1\u3092\u52A0\u3048\u3066\u716E\u7ACB\u305F\u305B\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u8339\u3067\u4E0A\u304C\u3063\u305F\u30D1\u30B9\u30BF\u3068\u8339\u3067\u6C41\u5927\u3055\u30582\u3092\u52A0\u3048\u3066\u624B\u65E9\u304F\u30BD\u30FC\u30B9\u3068\u4E73\u5316\u3055\u305B\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 480, protein: 21, fat: 12.5, carbohydrates: 72, saltEquivalent: 2.2, highlights: "\u30D1\u30B9\u30BF\u306E\u7CD6\u8CEA\u3068\u30C8\u30DE\u30C8\u306E\u30D3\u30BF\u30DF\u30F3\u3067\u52B9\u7387\u7684\u306A\u30A8\u30CD\u30EB\u30AE\u30FC\u30C1\u30E3\u30FC\u30B8\u3002" },
+        chefTips: "\u8339\u3067\u6C41\u3092\u5C11\u91CF\u52A0\u3048\u3066\u30BD\u30FC\u30B9\u3068\u3057\u3063\u304B\u308A\u6DF7\u305C\u5408\u308F\u305B\u308B\uFF08\u4E73\u5316\u3055\u305B\u308B\uFF09\u3053\u3068\u3067\u3001\u30D1\u30B9\u30BF\u306B\u30BD\u30FC\u30B9\u304C\u7D61\u307F\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_tomato_3",
+        title: `\u65E8\u5473\u304C\u6EB6\u3051\u51FA\u3059 \u5177\u3060\u304F\u3055\u3093\u98DF\u3079\u308B\u30DF\u30CD\u30B9\u30C8\u30ED\u30FC\u30CD`,
+        subtitle: `\u89D2\u5207\u308A\u91CE\u83DC\u3068\u30C8\u30DE\u30C8\u306E\u512A\u3057\u3044\u30B9\u30FC\u30D7\uFF01\u8EAB\u4F53\u304C\u82AF\u304B\u3089\u559C\u3076\u6804\u990A\u6E80\u70B9\u6C41`,
+        description: `\u304A\u8089\u3068\u304A\u91CE\u83DC\u3092\u89D2\u5207\u308A\u306B\u3057\u3066\u30B3\u30C8\u30B3\u30C8\u716E\u8FBC\u3093\u3060\u3001\u98DF\u3079\u308B\u30B9\u30FC\u30D7\u306E\u4EE3\u8868\u683C\u3002\u6E29\u671D\u98DF\u3084\u5915\u98DF\u306E\u30E1\u30A4\u30F3\u306B\u3082\u6700\u9069\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30DF\u30CD\u30B9\u30C8\u30ED\u30FC\u30CD", "\u91CE\u83DC\u305F\u3063\u3077\u308A", "\u6E29\u6D3B", "\u30D8\u30EB\u30B7\u30FC"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: chickenOrMeat, baseAmount: 120, unit: "g" },
+          { name: onionName, baseAmount: 1, unit: "\u500B" },
+          { name: "\u30AD\u30E3\u30D9\u30C4\u307E\u305F\u306F\u3058\u3083\u304C\u3044\u3082", baseAmount: 100, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: tomatoItemName, baseAmount: 200, unit: "g" },
+          { name: "\u6C34", baseAmount: 300, unit: "ml" },
+          { name: hasConsomme ? "\u30B3\u30F3\u30BD\u30E1" : "\u548C\u98A8\u9846\u7C92\u3060\u3057", baseAmount: 1, unit: "\u500B" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u3059\u3079\u30661cm\u89D2\u306E\u3055\u3044\u306E\u76EE\u5207\u308A\u306B\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u3067\u30AA\u30EA\u30FC\u30D6\u6CB9\u3092\u71B1\u3057\u3066\u5177\u6750\u3092\u7092\u3081\u3001\u30C8\u30DE\u30C8\u7F36\u3068\u6C34\u3001\u30B3\u30F3\u30BD\u30E1\u3092\u52A0\u3048\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u30D5\u30BF\u3092\u3057\u3066\u5F31\u706B\u3067\u91CE\u83DC\u304C\u67D4\u3089\u304B\u304F\u306A\u308B\u307E\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 8 }
+        ],
+        nutritionPerServing: { calories: 240, protein: 16, fat: 9, carbohydrates: 22, saltEquivalent: 1.8, highlights: "\u91CE\u83DC\u306E\u98DF\u7269\u7E4A\u7DAD\u3068\u30D3\u30BF\u30DF\u30F3\u3092\u4F59\u3059\u3053\u3068\u306A\u304F\u6442\u53D6\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u7FCC\u671D\u306B\u6E29\u3081\u76F4\u3059\u3068\u3001\u3055\u3089\u306B\u91CE\u83DC\u306E\u7518\u307F\u304C\u6EB6\u3051\u51FA\u3057\u3066\u7F8E\u5473\u3057\u304F\u306A\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_tomato_4",
+        title: `\u3068\u308D\u3051\u308B\u30C1\u30FC\u30BA\u3068\u30C8\u30DE\u30C8\u306E \u5305\u307F\u84B8\u3057\u713C\u304D`,
+        subtitle: `\u30DB\u30A4\u30EB\u3084\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u5305\u3093\u3067\u84B8\u3059\u3060\u3051\uFF01\u8089\u6C41\u3068\u30C1\u30FC\u30BA\u304C\u30C8\u30DE\u30C8\u3068\u7D61\u307F\u5408\u3046`,
+        description: `\u30B8\u30E5\u30FC\u30B7\u30FC\u306A\u304A\u8089\u306B\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u3068\u3068\u308D\u3051\u308B\u30C1\u30FC\u30BA\u3092\u91CD\u306D\u3066\u84B8\u3057\u713C\u304D\u306B\u3057\u305F\u3001\u7C21\u5358\uFF06\u8C6A\u83EF\u306A\u30E1\u30A4\u30F3\u30C7\u30A3\u30C3\u30B7\u30E5\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30C1\u30FC\u30BA", "\u84B8\u3057\u713C\u304D", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u7C21\u5358"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: chickenOrMeat, baseAmount: 200, unit: "g" },
+          { name: onionName, baseAmount: 0.5, unit: "\u500B" },
+          { name: "\u30D4\u30B6\u7528\u30C1\u30FC\u30BA", baseAmount: 50, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: tomatoItemName, baseAmount: 4, unit: "\u5927\u3055\u3058" },
+          { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u304A\u8089\u3068\u7389\u306D\u304E\u3092\u4E26\u3079\u3001\u5869\u3053\u3057\u3087\u3046\u3092\u3075\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u4E0A\u306B\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u3068\u30C1\u30FC\u30BA\u3092\u306E\u305B\u3001\u30D5\u30BF\u3092\u3057\u3066\u4E2D\u5F31\u706B\u3067\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 8 },
+          { stepNumber: 3, instruction: `\u30C1\u30FC\u30BA\u304C\u3068\u308D\u3051\u3066\u304A\u8089\u306B\u706B\u304C\u901A\u3063\u305F\u3089\u5B8C\u6210\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 340, protein: 24, fat: 18, carbohydrates: 12, saltEquivalent: 1.7, highlights: "\u4F4E\u7CD6\u8CEA\uFF06\u9AD8\u305F\u3093\u3071\u304F\u3067\u30C0\u30A4\u30A8\u30C3\u30C8\u4E2D\u306B\u3082\u304A\u3059\u3059\u3081\u3002" },
+        chefTips: "\u30D5\u30BF\u3092\u958B\u3051\u305A\u306B\u84B8\u6C17\u3092\u9589\u3058\u8FBC\u3081\u308B\u3053\u3068\u3067\u3001\u304A\u8089\u304C\u3057\u3063\u3068\u308A\u67D4\u3089\u304B\u304F\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_tomato_5",
+        title: `\u30B8\u30E5\u30FC\u30B7\u30FC\u304A\u8089\u3068\u91CE\u83DC\u306E \u30C8\u30DE\u30C8\u30C1\u30FC\u30BA\u713C\u304D`,
+        subtitle: `\u8010\u71B1\u76BF\u306B\u4E26\u3079\u3066\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u3053\u3093\u304C\u308A\uFF01\u9999\u3070\u3057\u3044\u713C\u304D\u76EE\u304C\u98DF\u6B32\u3092\u305D\u305D\u308B`,
+        description: `\u30BD\u30C6\u30FC\u3057\u305F\u5177\u6750\u306B\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u3068\u30C1\u30FC\u30BA\u3092\u304B\u3051\u3066\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u9999\u3070\u3057\u304F\u713C\u304D\u4E0A\u3052\u305F\u30B0\u30E9\u30BF\u30F3\u98A8\u306E\u4E3B\u83DC\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30C8\u30FC\u30B9\u30BF\u30FC\u8ABF\u7406", "\u30C1\u30FC\u30BA\u713C\u304D", "\u9999\u3070\u3057\u3044", "\u304A\u5F01\u5F53\u306B\u3082"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: chickenOrMeat, baseAmount: 180, unit: "g" },
+          { name: onionName, baseAmount: 0.5, unit: "\u500B" },
+          { name: "\u30D4\u30B6\u7528\u30C1\u30FC\u30BA", baseAmount: 50, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: tomatoItemName, baseAmount: 4, unit: "\u5927\u3055\u3058" },
+          { name: hasOil ? "\u30AA\u30EA\u30FC\u30D6\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u30B5\u30C3\u3068\u7092\u3081\u3066\u8010\u71B1\u76BF\u306B\u79FB\u3057\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 2, instruction: `\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u3092\u304B\u3051\u3001\u30C1\u30FC\u30BA\u3092\u305F\u3063\u3077\u308A\u6563\u3089\u3057\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u30C1\u30FC\u30BA\u306B\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u713C\u304D\u307E\u3059\u3002`, timerMinutes: 7 }
+        ],
+        nutritionPerServing: { calories: 350, protein: 23, fat: 19, carbohydrates: 14, saltEquivalent: 1.8, highlights: "\u30AB\u30EB\u30B7\u30A6\u30E0\u3068\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u304C\u540C\u6642\u306B\u30C1\u30E3\u30FC\u30B8\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u5177\u6750\u3092\u3042\u3089\u304B\u3058\u3081\u7092\u3081\u3066\u304A\u304F\u3053\u3068\u3067\u3001\u30C8\u30FC\u30B9\u30BF\u30FC\u306E\u713C\u304D\u6642\u9593\u3060\u3051\u3067\u30B8\u30E5\u30FC\u30B7\u30FC\u306B\u5B8C\u6210\u3057\u307E\u3059\u3002"
+      }
+    ];
+  } else if (hasConsommeMatch) {
+    const meatOrSausage = allInputs.find((i) => categorizeIngredient(i) === "meat") || "\u3042\u3089\u3073\u304D\u30A6\u30A4\u30F3\u30CA\u30FC\uFF08\u307E\u305F\u306F\u9D8F\u8089\u30FB\u8C5A\u8089\uFF09";
+    const cabbageOrVeg = allInputs.find((i) => /キャベツ|白菜|玉ねぎ/.test(i)) || "\u30AD\u30E3\u30D9\u30C4\uFF08\u7389\u306D\u304E\uFF09";
+    const carrotOrPotato = allInputs.find((i) => /人参|じゃがいも|大根/.test(i)) || "\u4EBA\u53C2\uFF08\u3058\u3083\u304C\u3044\u3082\uFF09";
+    const consommeItem = allInputs.find((i) => /コンソメ|ブイヨン/.test(i)) || "\u30B3\u30F3\u30BD\u30E1\uFF08\u30D6\u30A4\u30E8\u30F3\uFF09";
+    recipes = [
+      {
+        id: "rec_consomme_1",
+        title: `\u7D20\u6750\u306E\u65E8\u5473\u304C\u6EB6\u3051\u51FA\u3059\uFF01${meatOrSausage}\u3068\u30B4\u30ED\u30B4\u30ED\u91CE\u83DC\u306E\u738B\u9053\u30DD\u30C8\u30D5`,
+        subtitle: `\u30B3\u30C8\u30B3\u30C8\u716E\u8FBC\u3080\u3060\u3051\u3067\u7D76\u54C1\u30B9\u30FC\u30D7\uFF01\u304A\u8089\u3068\u91CE\u83DC\u306E\u7518\u307F\u304C\u51DD\u7E2E\u3055\u308C\u305F\u30D5\u30E9\u30F3\u30B9\u306E\u4F1D\u7D71\u5BB6\u5EAD\u6599\u7406`,
+        description: `\u5927\u304D\u304F\u5207\u3063\u305F\u304A\u91CE\u83DC\u3068\u30B8\u30E5\u30FC\u30B7\u30FC\u306A${meatOrSausage}\u3092\u30B3\u30F3\u30BD\u30E1\u30B9\u30FC\u30D7\u3067\u3058\u3063\u304F\u308A\u716E\u8FBC\u307F\u3001\u7D20\u6750\u672C\u6765\u306E\u65E8\u5473\u3068\u7518\u307F\u3092\u5B58\u5206\u306B\u5F15\u304D\u51FA\u3057\u305F\u738B\u9053\u30DD\u30C8\u30D5\u3067\u3059\u3002`,
+        cookingTimeMinutes: 20,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u738B\u9053\u5B9A\u756A", "\u30DD\u30C8\u30D5", "\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB", "\u91CE\u83DC\u305F\u3063\u3077\u308A", "\u716E\u8FBC\u307F"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: meatOrSausage, baseAmount: 160, unit: "g", note: "\u30A6\u30A4\u30F3\u30CA\u30FC\u306F\u5207\u308A\u8FBC\u307F\u3001\u304A\u8089\u306F\u5927\u304D\u3081\u4E00\u53E3\u5927" },
+          { name: cabbageOrVeg, baseAmount: 200, unit: "g", note: "\u5927\u304D\u3081\u306E\u304F\u3057\u5F62\u5207\u308A\uFF08\u82AF\u3092\u6B8B\u3059\u3068\u5D29\u308C\u306A\u3044\uFF09" },
+          { name: carrotOrPotato, baseAmount: 180, unit: "g", note: "\u5927\u304D\u3081\u306E\u4E71\u5207\u308A" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: consommeItem, baseAmount: 2, unit: "\u500B (\u9846\u7C92\u5C0F\u3055\u30582)" },
+          { name: "\u6C34", baseAmount: 600, unit: "ml" },
+          { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" },
+          { name: hasOil ? "\u30AA\u30EA\u30FC\u30D6\u6CB9\uFF08\u307E\u305F\u306F\u30B5\u30E9\u30C0\u6CB9\uFF09" : "\u6CB9", baseAmount: 1, unit: "\u5C0F\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u91CE\u83DC\u306F\u5927\u304D\u3081\u306E\u304F\u3057\u5F62\u3084\u4E71\u5207\u308A\u306B\u3057\u3001${meatOrSausage}\u306B\u306F\u659C\u3081\u306B\u6D45\u304F\u5207\u308A\u8FBC\u307F\u3092\u5165\u308C\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u306B\u6C34\u3068${consommeItem}\u3001\u91CE\u83DC\u3092\u5165\u308C\u3066\u4E2D\u706B\u306B\u304B\u3051\u3001\u6CB8\u9A30\u3057\u305F\u3089\u5F31\u706B\u306B\u3057\u3066\u30A2\u30AF\u3092\u53D6\u308A\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `${meatOrSausage}\u3092\u52A0\u3048\u3001\u30D5\u30BF\u3092\u3057\u3066\u5F31\u706B\u3067\u5177\u6750\u304C\u67D4\u3089\u304B\u304F\u306A\u308B\u307E\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 12 },
+          { stepNumber: 4, instruction: `\u5869\u30FB\u3053\u3057\u3087\u3046\u3067\u5473\u3092\u8ABF\u3048\u3001\u5668\u306B\u30B9\u30FC\u30D7\u3054\u3068\u76DB\u308A\u4ED8\u3051\u307E\u3059\u3002\u304A\u597D\u307F\u3067\u7C92\u30DE\u30B9\u30BF\u30FC\u30C9\u3092\u6DFB\u3048\u3066\u3069\u3046\u305E\u3002` }
+        ],
+        nutritionPerServing: { calories: 320, protein: 16.5, fat: 16, carbohydrates: 26, saltEquivalent: 2.1, highlights: "\u91CE\u83DC\u306E\u30D3\u30BF\u30DF\u30F3\u3084\u30DF\u30CD\u30E9\u30EB\u304C\u6EB6\u3051\u51FA\u3057\u305F\u30B9\u30FC\u30D7\u3054\u3068\u98F2\u3081\u308B\u305F\u3081\u3001\u6804\u990A\u5438\u53CE\u7387\u304C\u629C\u7FA4\u3067\u3059\u3002" },
+        chefTips: "\u91CE\u83DC\u3092\u5927\u304D\u3081\u306B\u5207\u3063\u3066\u716E\u5D29\u308C\u3092\u9632\u304E\u3001\u5F31\u706B\u3067\u3058\u3063\u304F\u308A\u716E\u308B\u3053\u3068\u3067\u30B9\u30FC\u30D7\u304C\u6FC1\u3089\u305A\u6F84\u3093\u3060\u30D7\u30ED\u306E\u4ED5\u4E0A\u304C\u308A\u306B\u306A\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_consomme_2",
+        title: `\u307B\u3063\u3053\u308A\u6E29\u307E\u308B \u5177\u3060\u304F\u3055\u3093\u91CE\u83DC\u3068\u3075\u3093\u308F\u308A\u5375\u306E\u30B3\u30F3\u30BD\u30E1\u30B9\u30FC\u30D7`,
+        subtitle: `10\u5206\u3067\u30B5\u30C3\u3068\u5B8C\u6210\uFF01\u671D\u98DF\u3084\u5915\u98DF\u306E\u6C41\u7269\u306B\u3074\u3063\u305F\u308A\u306A\u512A\u3057\u3044\u5473\u308F\u3044`,
+        description: `\u7D30\u5207\u308A\u91CE\u83DC\u3068\u304A\u8089\u306E\u65E8\u5473\u306B\u3001\u6EB6\u304D\u5375\u3092\u3075\u3093\u308F\u308A\u6D41\u3057\u8FBC\u3093\u3060\u6804\u990A\u6E80\u70B9\u306E\u30B3\u30F3\u30BD\u30E1\u30B9\u30FC\u30D7\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u6642\u77ED10\u5206", "\u30B9\u30FC\u30D7", "\u5375\u3068\u3058", "\u671D\u98DF\u306B\u3082"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: meatOrSausage, baseAmount: 100, unit: "g" },
+          { name: cabbageOrVeg, baseAmount: 120, unit: "g" },
+          { name: "\u5375", baseAmount: 2, unit: "\u500B", note: "\u6EB6\u304D\u5375" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: consommeItem, baseAmount: 1.5, unit: "\u500B" },
+          { name: "\u6C34", baseAmount: 500, unit: "ml" },
+          { name: hasSaltPepper ? "\u9ED2\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u8584\u5207\u308A\u3084\u77ED\u518A\u5207\u308A\u306B\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u306B\u6C34\u3068\u30B3\u30F3\u30BD\u30E1\u3001\u5177\u6750\u3092\u5165\u308C\u3066\u716E\u7ACB\u305F\u305B\u3001\u4E2D\u706B\u30673\u5206\u716E\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u3057\u3063\u304B\u308A\u6CB8\u9A30\u3057\u3066\u3044\u308B\u3068\u3053\u308D\u306B\u6EB6\u304D\u5375\u3092\u56DE\u3057\u5165\u308C\u3001\u706B\u3092\u6B62\u3081\u3066\u30D5\u30BF\u3092\u3057\u307E\u3059\u3002`, timerMinutes: 1 }
+        ],
+        nutritionPerServing: { calories: 190, protein: 13, fat: 11, carbohydrates: 9, saltEquivalent: 1.8, highlights: "\u4F4E\u30AB\u30ED\u30EA\u30FC\u306A\u304C\u3089\u305F\u3093\u3071\u304F\u8CEA\u304C\u3057\u3063\u304B\u308A\u6442\u308C\u308B\u6E29\u6D3B\u30B9\u30FC\u30D7\u3002" },
+        chefTips: "\u5375\u3092\u5165\u308C\u308B\u76F4\u524D\u306B\u30B9\u30FC\u30D7\u3092\u3057\u3063\u304B\u308A\u6CB8\u9A30\u3055\u305B\u308B\u3068\u3001\u5375\u304C\u3075\u308F\u3063\u3068\u82B1\u306E\u3088\u3046\u306B\u5E83\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_consomme_3",
+        title: `\u9999\u3070\u3057\u30AC\u30FC\u30EA\u30C3\u30AF\u30B3\u30F3\u30BD\u30E1\u4ED5\u7ACB\u3066\u306E ${meatOrSausage}\u30BD\u30C6\u30FC`,
+        subtitle: `\u30B3\u30F3\u30BD\u30E1\u306E\u65E8\u5473\u304C\u30AC\u30C4\u30F3\u3068\u52B9\u304F\uFF01\u3054\u98EF\u3082\u304A\u9152\u3082\u6B62\u307E\u3089\u306A\u3044\u7D76\u54C1\u304A\u304B\u305A`,
+        description: `\u30B3\u30F3\u30BD\u30E1\u3092\u8ABF\u5473\u6599\u3068\u3057\u3066\u76F4\u63A5\u307E\u3076\u3057\u3066\u7092\u3081\u3001\u7D20\u6750\u306E\u65E8\u5473\u3092\u30AC\u30C4\u30F3\u3068\u5F15\u304D\u51FA\u3057\u305F\u30B9\u30D1\u30A4\u30B7\u30FC\u30BD\u30C6\u30FC\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u6642\u77ED10\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u304A\u3064\u307E\u307F", "\u9999\u3070\u3057\u3044"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: meatOrSausage, baseAmount: 180, unit: "g" },
+          { name: cabbageOrVeg, baseAmount: 150, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: consommeItem, baseAmount: 1, unit: "\u5C0F\u3055\u3058 (\u9846\u7C92\u307E\u305F\u306F\u7D30\u304B\u304F\u7815\u304F)" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+          { name: hasGarlicGinger ? "\u306B\u3093\u306B\u304F" : "\u9ED2\u3053\u3057\u3087\u3046", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u30D0\u30BF\u30FC\u3068\u306B\u3093\u306B\u304F\u3092\u71B1\u3057\u3001\u5177\u6750\u3092\u5F37\u706B\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `\u7815\u3044\u305F\u30B3\u30F3\u30BD\u30E1\u3068\u9ED2\u3053\u3057\u3087\u3046\u3092\u3075\u308A\u5165\u308C\u3001\u5168\u4F53\u306B\u624B\u65E9\u304F\u7092\u3081\u7D61\u3081\u307E\u3059\u3002`, timerMinutes: 1 }
+        ],
+        nutritionPerServing: { calories: 290, protein: 16, fat: 20, carbohydrates: 10, saltEquivalent: 1.7, highlights: "\u30B3\u30F3\u30BD\u30E1\u306E\u65E8\u5473\u304C\u91CE\u83DC\u306E\u7518\u307F\u3092\u5F15\u304D\u7ACB\u3066\u3001\u7F8E\u5473\u3057\u304F\u91CE\u83DC\u304C\u6442\u308C\u307E\u3059\u3002" },
+        chefTips: "\u30B3\u30F3\u30BD\u30E1\u9846\u7C92\u3092\u76F4\u63A5\u7092\u3081\u7269\u306B\u4F7F\u3046\u3068\u3001\u5473\u304C\u30DC\u30E4\u3051\u305A\u30D1\u30F3\u30C1\u306E\u3042\u308B\u4ED5\u4E0A\u304C\u308A\u306B\u306A\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_consomme_4",
+        title: `\u30B3\u30F3\u30BD\u30E1\u30D0\u30BF\u30FC\u9999\u308B \u65E8\u5473\u305F\u3063\u3077\u308A\u6D0B\u98A8\u30D4\u30E9\u30D5\u7092\u3081`,
+        subtitle: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306710\u5206\uFF01\u51B7\u3054\u98EF\u304C\u3054\u3061\u305D\u3046\u6D0B\u98DF\u30D4\u30E9\u30D5\u306B\u5927\u5909\u8EAB`,
+        description: `\u3054\u98EF\u3068\u5177\u6750\u3092\u30D0\u30BF\u30FC\u3068\u30B3\u30F3\u30BD\u30E1\u3067\u9999\u3070\u3057\u304F\u7092\u3081\u305F\u3001\u5B50\u3069\u3082\u306B\u3082\u5927\u4EBA\u6C17\u306E\u30D4\u30E9\u30D5\u98A8\u7092\u3081\u3054\u98EF\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u30D4\u30E9\u30D5", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u5927\u4EBA\u6C17", "10\u5206\u98EF"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: "\u6E29\u304B\u3044\u3054\u98EF", baseAmount: 320, unit: "g" },
+          { name: meatOrSausage, baseAmount: 120, unit: "g" },
+          { name: carrotOrPotato, baseAmount: 60, unit: "g", note: "\u307F\u3058\u3093\u5207\u308A" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: consommeItem, baseAmount: 1.5, unit: "\u5C0F\u3055\u3058" },
+          { name: hasButter ? "\u30D0\u30BF\u30FC" : "\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+          { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u5C0F\u3055\u3081\u306E\u307F\u3058\u3093\u5207\u308A\u307E\u305F\u306F\u89D2\u5207\u308A\u306B\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u30D0\u30BF\u30FC\u3092\u6EB6\u304B\u3057\u3001\u5177\u6750\u3092\u7092\u3081\u3066\u706B\u3092\u901A\u3057\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u3054\u98EF\u3068\u30B3\u30F3\u30BD\u30E1\u3092\u52A0\u3048\u3001\u30D1\u30E9\u30D1\u30E9\u306B\u306A\u308B\u3088\u3046\u624B\u65E9\u304F\u7092\u3081\u5408\u308F\u305B\u307E\u3059\u3002`, timerMinutes: 3 }
+        ],
+        nutritionPerServing: { calories: 460, protein: 14, fat: 15, carbohydrates: 66, saltEquivalent: 1.9, highlights: "\u70AD\u6C34\u5316\u7269\u3068\u8102\u8CEA\u30FB\u305F\u3093\u3071\u304F\u8CEA\u306E\u30D0\u30E9\u30F3\u30B9\u304C\u826F\u304F\u30A8\u30CD\u30EB\u30AE\u30FC\u88DC\u7D66\u306B\u6700\u9069\u3002" },
+        chefTips: "\u3054\u98EF\u3092\u5165\u308C\u305F\u3089\u30D8\u30E9\u3067\u5207\u308B\u3088\u3046\u306B\u7092\u3081\u308B\u3068\u3001\u304A\u7C73\u304C\u6F70\u308C\u305A\u30D1\u30E9\u30C3\u3068\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_consomme_5",
+        title: `\u30B3\u30F3\u30BD\u30E1\u51FA\u6C41\u304C\u67D3\u307F\u308B ${meatOrSausage}\u3068\u91CE\u83DC\u306E\u6D0B\u98A8\u84B8\u3057\u716E`,
+        subtitle: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u91CD\u306D\u3066\u84B8\u3059\u3060\u3051\uFF01\u6CB9\u63A7\u3048\u3081\u3067\u7D20\u6750\u306E\u65E8\u5473\u3092\u305D\u306E\u307E\u307E\u5473\u308F\u3046`,
+        description: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u5177\u6750\u3092\u91CD\u306D\u3066\u30B3\u30F3\u30BD\u30E1\u30B9\u30FC\u30D7\u3067\u84B8\u3057\u713C\u304D\u306B\u3057\u305F\u3001\u30D8\u30EB\u30B7\u30FC\u3067\u7D20\u6750\u306E\u7518\u307F\u304C\u969B\u7ACB\u3064\u4E00\u54C1\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u6D0B\u98A8",
+        tags: ["\u84B8\u3057\u716E", "\u30D8\u30EB\u30B7\u30FC", "\u6CB9\u63A7\u3048\u3081", "\u6642\u77ED"],
+        baseServings: 2,
+        mainIngredients: [
+          { name: meatOrSausage, baseAmount: 160, unit: "g" },
+          { name: cabbageOrVeg, baseAmount: 180, unit: "g" }
+        ],
+        seasonings: buildSeasoningList([
+          { name: consommeItem, baseAmount: 1, unit: "\u500B" },
+          { name: "\u6C34", baseAmount: 100, unit: "ml" },
+          { name: hasSaltPepper ? "\u9ED2\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+        ]),
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u91CE\u83DC\u3092\u6577\u304D\u3001\u305D\u306E\u4E0A\u306B${meatOrSausage}\u3092\u4E26\u3079\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u6C34100ml\u3068\u7815\u3044\u305F\u30B3\u30F3\u30BD\u30E1\u3092\u5168\u4F53\u306B\u56DE\u3057\u304B\u3051\u3001\u30D5\u30BF\u3092\u3057\u3066\u4E2D\u706B\u3067\u84B8\u3057\u716E\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 7 },
+          { stepNumber: 3, instruction: `\u5668\u306B\u76DB\u308A\u3001\u9ED2\u3053\u3057\u3087\u3046\u3092\u3075\u3063\u3066\u3044\u305F\u3060\u304D\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 230, protein: 14, fat: 14, carbohydrates: 12, saltEquivalent: 1.6, highlights: "\u84B8\u3059\u3053\u3068\u3067\u4F59\u5206\u306A\u8102\u3092\u843D\u3068\u3057\u3001\u91CE\u83DC\u306E\u30D3\u30BF\u30DF\u30F3\u3092\u30AD\u30FC\u30D7\u3002" },
+        chefTips: "\u84B8\u3057\u6C41\u306B\u3082\u65E8\u5473\u304C\u305F\u3063\u3077\u308A\u51FA\u3066\u3044\u308B\u306E\u3067\u3001\u5668\u306B\u6C41\u3054\u3068\u76DB\u308A\u4ED8\u3051\u3066\u304F\u3060\u3055\u3044\u3002"
+      }
+    ];
+  } else if (hasYam && (hasPork || hasBeef || hasChicken || mainMeatOrProtein) && hasCabbage) {
+    const yamName = allInputs.find((i) => /山芋|長芋|とろろ|大和芋/.test(i)) || "\u5C71\u828B";
+    const cabbageName = allInputs.find((i) => /キャベツ|白菜/.test(i)) || "\u30AD\u30E3\u30D9\u30C4";
+    const meatName = mainMeatOrProtein;
+    const rec1Mains = [
+      { name: meatName, baseAmount: 180, unit: "g", note: "\u4E00\u53E3\u5927\u307E\u305F\u306F\u77ED\u518A\u5207\u308A" },
+      { name: cabbageName, baseAmount: 200, unit: "g (\u7D041/4\u7389)", note: "\u7C97\u307F\u3058\u3093\u5207\u308A\u307E\u305F\u306F\u5343\u5207\u308A" },
+      { name: yamName, baseAmount: 150, unit: "g", note: "\u76AE\u3092\u3080\u3044\u3066\u3059\u308A\u304A\u308D\u3059" },
+      { name: "\u5375\uFF08\u3042\u308C\u3070\uFF09", baseAmount: 2, unit: "\u500B" }
+    ];
+    const rec1Seasonings = buildSeasoningList([
+      { name: hasFlour ? "\u5C0F\u9EA6\u7C89\uFF08\u8584\u529B\u7C89\uFF09" : "\u7247\u6817\u7C89", baseAmount: 3, unit: "\u5927\u3055\u3058" },
+      { name: hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9\u30FB\u307F\u308A\u3093" : "\u7279\u88FD\u30BD\u30FC\u30B9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : "\u304A\u597D\u307F\u306E\u30BF\u30EC", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? rawStaples.find((s) => /油/.test(s)) || "\u30B5\u30E9\u30C0\u6CB9" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const rec1Nutrition = estimateNutrition("\u304A\u597D\u307F\u713C\u304D", rec1Mains, rec1Seasonings);
+    const rec2Mains = [
+      { name: meatName, baseAmount: 160, unit: "g", note: "\u4E00\u53E3\u5927\u306B\u30AB\u30C3\u30C8" },
+      { name: cabbageName, baseAmount: 180, unit: "g", note: "\u592A\u3081\u306E\u5343\u5207\u308A" },
+      { name: yamName, baseAmount: 120, unit: "g", note: "\u5343\u5207\u308A\u307E\u305F\u306F\u3059\u308A\u304A\u308D\u3057" },
+      { name: "\u5375", baseAmount: 2, unit: "\u500B", note: "\u6EB6\u304D\u5375\u306B\u3057\u3066\u3075\u3093\u308F\u308A\u713C\u304F" }
+    ];
+    const rec2Seasonings = buildSeasoningList([
+      { name: hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : "\u7279\u88FD\u30BD\u30FC\u30B9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : "\u30DE\u30E8\u30CD\u30FC\u30BA", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+    ]);
+    const rec2Nutrition = estimateNutrition("\u3068\u3093\u5E73\u713C\u304D", rec2Mains, rec2Seasonings);
+    const rec3Mains = [
+      { name: yamName, baseAmount: 200, unit: "g", note: "\u3059\u308A\u304A\u308D\u3057\u3066\u3075\u3093\u308F\u308A\u751F\u5730\u306B" },
+      { name: meatName, baseAmount: 150, unit: "g", note: "\u30AB\u30EA\u30C3\u3068\u9999\u3070\u3057\u304F\u7092\u3081\u308B" },
+      { name: cabbageName, baseAmount: 150, unit: "g", note: "\u7D30\u5207\u308A" }
+    ];
+    const rec3Seasonings = buildSeasoningList([
+      { name: hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9" : "\u30BD\u30FC\u30B9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : "\u30DE\u30E8\u30CD\u30FC\u30BA", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u5869", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const rec3Nutrition = estimateNutrition("\u9244\u677F\u713C\u304D", rec3Mains, rec3Seasonings);
+    const rec4Mains = [
+      { name: meatName, baseAmount: 200, unit: "g", note: "\u4E00\u53E3\u5927" },
+      { name: yamName, baseAmount: 150, unit: "g", note: "1cm\u539A\u3055\u306E\u534A\u6708\u5207\u308A\uFF08\u76AE\u4ED8\u304D\u3067\u3082\u7F8E\u5473\uFF09" },
+      { name: cabbageName, baseAmount: 150, unit: "g", note: "\u3056\u304F\u5207\u308A" }
+    ];
+    const rec4Seasonings = buildSeasoningList([
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA\uFF08\u7092\u3081\u7528\uFF06\u5473\u4ED8\u3051\uFF09" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasSoySauce ? "\u91A4\u6CB9" : hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSaltPepper ? "\u9ED2\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+    ]);
+    const rec4Nutrition = estimateNutrition("\u30BD\u30C6\u30FC", rec4Mains, rec4Seasonings);
+    const rec5Mains = [
+      { name: meatName, baseAmount: 180, unit: "g (\u8584\u5207\u308A\u80898\u679A)", note: "\u5C71\u828B\u3092\u5DFB\u304F" },
+      { name: yamName, baseAmount: 160, unit: "g", note: "\u62CD\u5B50\u6728\u5207\u308A\uFF08\u68D2\u72B6\uFF09" },
+      { name: cabbageName, baseAmount: 150, unit: "g", note: "\u6577\u304D\u8A70\u3081\u3066\u4E00\u7DD2\u306B\u84B8\u3057\u713C\u304D" }
+    ];
+    const rec5Seasonings = buildSeasoningList([
+      { name: hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9\u30FB\u307F\u308A\u3093" : "\u7279\u88FD\u30BD\u30FC\u30B9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : "\u30DE\u30E8\u30CD\u30FC\u30BA", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const rec5Nutrition = estimateNutrition("\u5C71\u828B\u5DFB\u304D", rec5Mains, rec5Seasonings);
+    recipes = [
+      {
+        id: "rec_yam_1",
+        title: `${meatName}\u3068${cabbageName}\u30FB${yamName}\u306E\u6975\u4E0A\u3075\u308F\u3068\u308D\u304A\u597D\u307F\u713C\u304D`,
+        subtitle: `\u3059\u308A\u304A\u308D\u3057${yamName}\u3067\u9A5A\u304D\u306E\u3075\u308F\u3075\u308F\u98DF\u611F\uFF01\u5BB6\u306B\u3042\u308B\u30BD\u30FC\u30B9\u3068\u30DE\u30E8\u3067\u7D76\u54C1`,
+        description: `\u3059\u308A\u304A\u308D\u3057\u305F${yamName}\u3092\u305F\u3063\u3077\u308A\u751F\u5730\u306B\u52A0\u3048\u308B\u3053\u3068\u3067\u3001\u307E\u308B\u3067\u304A\u5E97\u306E\u3088\u3046\u306A\u6975\u4E0A\u306E\u3075\u308F\u3068\u308D\u98DF\u611F\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002\u9999\u3070\u3057\u304F\u713C\u3044\u305F${meatName}\u3068\u7518\u3044${cabbageName}\u306E\u76F8\u6027\u304C\u629C\u7FA4\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u3075\u308F\u3068\u308D\u98DF\u611F", "\u4EBA\u6C17\u5B9A\u756A", "\u3054\u3061\u305D\u3046"],
+        baseServings: 2,
+        mainIngredients: rec1Mains,
+        seasonings: rec1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${cabbageName}\u306F\u7C97\u307F\u3058\u3093\u5207\u308A\u3001${yamName}\u306F\u76AE\u3092\u3080\u3044\u3066\u3059\u308A\u304A\u308D\u3057\u307E\u3059\u3002${meatName}\u306F\u4E00\u53E3\u5927\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30DC\u30A6\u30EB\u306B\u3059\u308A\u304A\u308D\u3057\u305F${yamName}\u3001\u5375\u3001\u5C0F\u9EA6\u7C89\u3001\u3060\u3057\u306E\u7D20\u3092\u6DF7\u305C\u5408\u308F\u305B\u3001${cabbageName}\u3092\u52A0\u3048\u3066\u30B5\u30C3\u30AF\u30EA\u3068\u7A7A\u6C17\u3092\u542B\u307E\u305B\u308B\u3088\u3046\u306B\u6DF7\u305C\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u4E2D\u706B\u3067\u71B1\u3057\u3001\u751F\u5730\u3092\u4E38\u304F\u6D41\u3057\u5165\u308C\u3001\u4E0A\u306B${meatName}\u3092\u4E26\u3079\u3066\u30D5\u30BF\u3092\u3057\u3001\u4E2D\u5F31\u706B\u3067\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 4, instruction: `\u88CF\u8FD4\u3057\u3066\u30D5\u30BF\u3092\u3057\u3001\u3055\u3089\u306B${meatName}\u304C\u30AB\u30EA\u30C3\u3068\u3059\u308B\u307E\u3067\u9999\u3070\u3057\u304F\u713C\u304D\u4E0A\u3052\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 5, instruction: `\u304A\u76BF\u306B\u76DB\u308A\u3001\u30BD\u30FC\u30B9\u3068\u30DE\u30E8\u30CD\u30FC\u30BA\u3092\u305F\u3063\u3077\u308A\u304B\u3051\u3066\u5B8C\u6210\u3067\u3059\uFF01` }
+        ],
+        nutritionPerServing: { ...rec1Nutrition, highlights: `${yamName}\u306E\u30E0\u30C1\u30F3\u3068\u30D3\u30BF\u30DF\u30F3B\u7FA4\u304C\u75B2\u52B4\u56DE\u5FA9\u3092\u4FC3\u9032\u3057\u3001\u80C3\u8178\u306E\u8ABF\u5B50\u3092\u6574\u3048\u307E\u3059\u3002` },
+        chefTips: "\u751F\u5730\u3092\u6DF7\u305C\u3059\u304E\u306A\u3044\u3053\u3068\u3068\u3001\u30D5\u30BF\u3092\u3057\u3066\u84B8\u3057\u713C\u304D\u306B\u3059\u308B\u306E\u304C\u3075\u308F\u3075\u308F\u306B\u81A8\u3089\u3080\u6700\u5927\u306E\u79D8\u8A23\u3067\u3059\u3002"
+      },
+      {
+        id: "rec_yam_2",
+        title: `${yamName}\u3068${meatName}\u30FB${cabbageName}\u306E\u30AB\u30EA\u30C3\u3068\u9999\u3070\u3057 \u3068\u3093\u5E73\u713C\u304D`,
+        subtitle: `10\u5206\u3067\u4F5C\u308C\u308B\u5C45\u9152\u5C4B\u4EBA\u6C17\u30E1\u30CB\u30E5\u30FC\uFF01\u7518\u8F9B\u30BD\u30FC\u30B9\u3068\u30DE\u30E8\u30CD\u30FC\u30BA\u304C\u305F\u307E\u3089\u306A\u3044`,
+        description: `\u30B7\u30E3\u30AD\u30B7\u30E3\u30AD\u306E${cabbageName}\u3068\u30DB\u30AF\u30DB\u30AF${yamName}\u3001\u30B8\u30E5\u30FC\u30B7\u30FC\u306A${meatName}\u3092\u9999\u3070\u3057\u304F\u7092\u3081\u3001\u8584\u713C\u304D\u5375\u3067\u3075\u3093\u308F\u308A\u5305\u3093\u3060\u30B9\u30D4\u30FC\u30C9\u304A\u304B\u305A\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u6642\u77ED10\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u304A\u3064\u307E\u307F\u306B\u3082", "\u9AD8\u305F\u3093\u3071\u304F"],
+        baseServings: 2,
+        mainIngredients: rec2Mains,
+        seasonings: rec2Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${cabbageName}\u3068${yamName}\u306F\u5343\u5207\u308A\u306B\u3057\u3001${meatName}\u306F\u4E00\u53E3\u5927\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001${meatName}\u3092\u7092\u3081\u3066\u8272\u304C\u5909\u308F\u3063\u305F\u3089${yamName}\u3068${cabbageName}\u3092\u52A0\u3048\u3001\u5F37\u706B\u3067\u30B5\u30C3\u3068\u7092\u3081\u3066\u4E00\u5EA6\u304A\u76BF\u306B\u53D6\u308A\u51FA\u3057\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u540C\u3058\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6EB6\u304D\u5375\u3092\u6D41\u3057\u5165\u308C\u3001\u534A\u719F\u72B6\u306B\u306A\u3063\u305F\u3089\u7092\u3081\u305F\u5177\u6750\u3092\u4E2D\u592E\u306B\u4E57\u305B\u3066\u5305\u307F\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 4, instruction: `\u304A\u76BF\u306B\u76DB\u308A\u4ED8\u3051\u3001\u30BD\u30FC\u30B9\u3068\u30DE\u30E8\u30CD\u30FC\u30BA\u3092\u304B\u3051\u3066\u71B1\u3005\u3092\u3044\u305F\u3060\u304D\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...rec2Nutrition, highlights: "\u5375\u3068\u304A\u8089\u306E\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u306B\u3001\u5C71\u828B\u306E\u6D88\u5316\u9175\u7D20\u30A2\u30DF\u30E9\u30FC\u30BC\u304C\u52A0\u308F\u308A\u6D88\u5316\u306B\u512A\u3057\u3044\u4E00\u54C1\u3002" },
+        chefTips: "\u5375\u306F\u534A\u719F\u306E\u3046\u3061\u306B\u706B\u3092\u6B62\u3081\u3066\u5177\u6750\u3092\u5305\u3080\u3068\u3001\u3057\u3063\u3068\u308A\u30B8\u30E5\u30FC\u30B7\u30FC\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_yam_3",
+        title: `${meatName}\u3068${cabbageName}\u306E\u3075\u3093\u308F\u308A${yamName}\u9244\u677F\u713C\u304D \u30BD\u30FC\u30B9\u30DE\u30E8\u4ED5\u7ACB\u3066`,
+        subtitle: `\u3059\u308A\u304A\u308D\u3057${yamName}\u3092\u30B0\u30E9\u30BF\u30F3\u98A8\u306B\u9999\u3070\u3057\u304F\u713C\u304D\u4E0A\u3052\u308B\u7D76\u54C1\u304A\u304B\u305A`,
+        description: `\u3059\u308A\u304A\u308D\u3057\u305F${yamName}\u306E\u751F\u5730\u306B\u7092\u3081\u305F${meatName}\u3068${cabbageName}\u3092\u5408\u308F\u305B\u3001\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u4E21\u9762\u3053\u3093\u304C\u308A\u713C\u304D\u4E0A\u3052\u307E\u3059\u3002\u30B9\u30D7\u30FC\u30F3\u3067\u3059\u304F\u3063\u3066\u98DF\u3079\u308B\u65B0\u98DF\u611F\u306E\u7F8E\u5473\u3057\u3055\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30B9\u30D7\u30FC\u30F3\u3067\u98DF\u3079\u308B", "\u71B1\u3005\u30D5\u30EF\u30D5\u30EF", "\u5B50\u4F9B\u306B\u3082\u4EBA\u6C17", "\u91CE\u83DC\u305F\u3063\u3077\u308A"],
+        baseServings: 2,
+        mainIngredients: rec3Mains,
+        seasonings: rec3Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${yamName}\u306F\u3059\u308A\u304A\u308D\u3057\u3001${cabbageName}\u306F\u5343\u5207\u308A\u3001${meatName}\u306F\u5C0F\u3055\u3081\u306E\u4E00\u53E3\u5927\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067${meatName}\u3068${cabbageName}\u3092\u4E2D\u706B\u30672\u5206\u7092\u3081\u3066\u8EFD\u304F\u5869\u3092\u632F\u308A\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u3059\u308A\u304A\u308D\u3057${yamName}\u3092\u4E0A\u304B\u3089\u4E00\u6C17\u306B\u6D41\u3057\u5165\u308C\u3001\u5F31\u4E2D\u706B\u3067\u30D5\u30BF\u3092\u3057\u3066\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 4, instruction: `\u5E95\u304C\u9999\u3070\u3057\u304F\u56FA\u307E\u3063\u305F\u3089\u706B\u3092\u6B62\u3081\u3001\u30BD\u30FC\u30B9\u3068\u30DE\u30E8\u30CD\u30FC\u30BA\u3092\u304B\u3051\u3066\u30B9\u30D7\u30FC\u30F3\u3067\u3044\u305F\u3060\u304D\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...rec3Nutrition, highlights: `${yamName}\u306B\u542B\u307E\u308C\u308B\u98DF\u7269\u7E4A\u7DAD\u3068\u30AB\u30EA\u30A6\u30E0\u304C\u5869\u5206\u306E\u6392\u51FA\u3092\u52A9\u3051\u3001\u3080\u304F\u307F\u3092\u4E88\u9632\u3057\u307E\u3059\u3002` },
+        chefTips: "\u30D5\u30E9\u30A4\u30D1\u30F3\u306E\u307E\u307E\u98DF\u30BF\u30AF\u306B\u51FA\u3059\u3068\u3001\u6700\u5F8C\u307E\u3067\u30A2\u30C4\u30A2\u30C4\u306E\u3075\u308F\u3075\u308F\u98DF\u611F\u304C\u697D\u3057\u3081\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_yam_4",
+        title: `\u30B8\u30E5\u30FC\u30B7\u30FC${meatName}\u3068\u89D2\u5207\u308A${yamName}\u30FB${cabbageName}\u306E\u9999\u3070\u3057\u30DE\u30E8\u30BD\u30C6\u30FC`,
+        subtitle: `\u30B7\u30E3\u30AD\u30DB\u30AF\u98DF\u611F\u304C\u30AF\u30BB\u306B\u306A\u308B\uFF01\u30DE\u30E8\u30CD\u30FC\u30BA\u306E\u30B3\u30AF\u304C\u7D61\u3080\u3054\u98EF\u304C\u9032\u3080\u304A\u304B\u305A`,
+        description: `${yamName}\u3092\u89D2\u5207\u308A\u30FB\u77ED\u518A\u306B\u3057\u3066\u7092\u3081\u308B\u3053\u3068\u3067\u3001\u3059\u308A\u304A\u308D\u3057\u3068\u306F\u7570\u306A\u308B\u30DB\u30AF\u30DB\u30AF\uFF06\u30B7\u30E3\u30AD\u30B7\u30E3\u30AD\u306E\u6B6F\u3054\u305F\u3048\u3092\u582A\u80FD\u3067\u304D\u307E\u3059\u3002\u30DE\u30E8\u30CD\u30FC\u30BA\u306E\u30B3\u30AF\u3068\u9999\u3070\u3057\u3055\u304C\u7D76\u5999\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30B7\u30E3\u30AD\u30B7\u30E3\u30AD\u98DF\u611F", "\u6642\u77ED10\u5206", "\u3054\u98EF\u304C\u9032\u3080", "\u7C21\u5358\u7092\u3081"],
+        baseServings: 2,
+        mainIngredients: rec4Mains,
+        seasonings: rec4Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${yamName}\u306F\u76AE\u3092\u3080\u3044\u30661cm\u89D2\u307E\u305F\u306F\u77ED\u518A\u5207\u308A\u3001${cabbageName}\u306F\u3056\u304F\u5207\u308A\u3001${meatName}\u306F\u4E00\u53E3\u5927\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u30DE\u30E8\u30CD\u30FC\u30BA\u5927\u3055\u30581\u3092\u71B1\u3057\u3001${meatName}\u3068${yamName}\u3092\u5165\u308C\u3066\u4E2D\u706B\u3067\u3053\u3093\u304C\u308A\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 3, instruction: `${cabbageName}\u3092\u52A0\u3048\u3001\u5F37\u706B\u3067\u30B5\u30C3\u3068\u7092\u3081\u5408\u308F\u305B\u3001\u6B8B\u308A\u306E\u30DE\u30E8\u30CD\u30FC\u30BA\u3068\u304A\u597D\u307F\u306E\u5473\u4ED8\u3051\u3067\u4ED5\u4E0A\u3052\u307E\u3059\u3002`, timerMinutes: 2 }
+        ],
+        nutritionPerServing: { ...rec4Nutrition, highlights: "\u6CB9\u306E\u4EE3\u308F\u308A\u306B\u30DE\u30E8\u30CD\u30FC\u30BA\u3067\u7092\u3081\u308B\u3053\u3068\u3067\u65E8\u5473\u3068\u30B3\u30AF\u304C\u5177\u6750\u306B\u3057\u3063\u304B\u308A\u30B3\u30FC\u30C6\u30A3\u30F3\u30B0\u3055\u308C\u307E\u3059\u3002" },
+        chefTips: "\u5C71\u828B\u306F\u5F37\u706B\u3067\u713C\u304D\u76EE\u3092\u3064\u3051\u308B\u3068\u3001\u8868\u9762\u306F\u30AB\u30EA\u30C3\u3068\u4E2D\u306F\u30DB\u30AF\u30DB\u30AF\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_yam_5",
+        title: `${meatName}\u306E\u30B7\u30E3\u30AD\u30B7\u30E3\u30AD${yamName}\u5DFB\u304D ${cabbageName}\u84B8\u3057\u6DFB\u3048`,
+        subtitle: `\u304A\u8089\u306E\u65E8\u5473\u3092\u5438\u3063\u305F\u5C71\u828B\u304C\u30B8\u30E5\u30FC\u30B7\u30FC\uFF01\u898B\u305F\u76EE\u3082\u83EF\u3084\u304B\u306A\u3054\u3061\u305D\u3046\u5DFB\u304D`,
+        description: `\u68D2\u72B6\u306B\u5207\u3063\u305F${yamName}\u306B${meatName}\u3092\u304F\u308B\u308A\u3068\u5DFB\u304D\u3001\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6577\u304D\u8A70\u3081\u305F${cabbageName}\u3068\u4E00\u7DD2\u306B\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002\u4E00\u53E3\u98DF\u3079\u308B\u3068\u8089\u6C41\u3068\u5C71\u828B\u306E\u7518\u307F\u304C\u6EA2\u308C\u307E\u3059\u3002`,
+        cookingTimeMinutes: 14,
+        difficulty: "\u666E\u901A",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u304A\u5F01\u5F53\u306B\u3082", "\u3054\u3061\u305D\u3046\u611F", "\u84B8\u3057\u713C\u304D\u30D8\u30EB\u30B7\u30FC", "\u5F69\u308A"],
+        baseServings: 2,
+        mainIngredients: rec5Mains,
+        seasonings: rec5Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${yamName}\u306F7\u301C8cm\u306E\u68D2\u72B6\uFF08\u62CD\u5B50\u6728\u5207\u308A\uFF09\u306B\u5207\u308A\u3001${meatName}\u3067\u3057\u3063\u304B\u308A\u3068\u5DFB\u304D\u3064\u3051\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306E\u5E95\u306B\u3056\u304F\u5207\u308A\u306E${cabbageName}\u3092\u6577\u304D\u8A70\u3081\u3001\u305D\u306E\u4E0A\u306B\u5DFB\u304D\u7D42\u308F\u308A\u3092\u4E0B\u306B\u3057\u3066\u8089\u5DFB\u304D\u3092\u4E26\u3079\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30D5\u30BF\u3092\u3057\u3066\u4E2D\u706B\u306B\u304B\u3051\u3001\u84B8\u6C17\u304C\u51FA\u3066\u304D\u305F\u3089\u5F31\u4E2D\u706B\u3067\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 6 },
+          { stepNumber: 4, instruction: `\u30D5\u30BF\u3092\u53D6\u308A\u3001\u30BD\u30FC\u30B9\u3068\u30DE\u30E8\u30CD\u30FC\u30BA\uFF08\u307E\u305F\u306F\u91A4\u6CB9\u30C0\u30EC\uFF09\u3092\u56DE\u3057\u304B\u3051\u3066\u9999\u3070\u3057\u304F\u7D61\u3081\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...rec5Nutrition, highlights: "\u304A\u8089\u306E\u8102\u304C\u30AD\u30E3\u30D9\u30C4\u3068\u5C71\u828B\u306B\u3057\u307F\u8FBC\u307F\u3001\u8ABF\u5473\u6599\u63A7\u3048\u3081\u3067\u3082\u5927\u6E80\u8DB3\u306E\u5473\u308F\u3044\u306B\u306A\u308A\u307E\u3059\u3002" },
+        chefTips: "\u8089\u306E\u5DFB\u304D\u7D42\u308F\u308A\u3092\u4E0B\u306B\u3057\u3066\u713C\u304D\u59CB\u3081\u308B\u3053\u3068\u3067\u3001\u722A\u694A\u679D\u3092\u4F7F\u308F\u306A\u304F\u3066\u3082\u7DBA\u9E97\u306B\u307E\u3068\u307E\u308A\u307E\u3059\u3002"
+      }
+    ];
+  } else if (/そば|蕎麦|うどん|焼きそば|焼そば|ラーメン|中華麺/.test(searchStr)) {
+    const noodleName = allInputs.find((i) => /そば|蕎麦|うどん|焼きそば|焼そば|ラーメン|中華麺/.test(i)) || "\u8339\u3067\u9EBA";
+    const meatOrProtein = allInputs.find((i) => i !== noodleName && (categorizeIngredient(i) === "meat" || categorizeIngredient(i) === "fish" || /あげ|豆腐/.test(i))) || "\u8C5A\u8089\u30FB\u5177\u6750";
+    const vegName = allInputs.find((i) => i !== noodleName && i !== meatOrProtein) || "\u30AD\u30E3\u30D9\u30C4\u30FB\u91CE\u83DC";
+    const isYakisoba = /焼きそば|焼そば/.test(noodleName);
+    const isUdon = /うどん/.test(noodleName);
+    const isSoba = /そば|蕎麦/.test(noodleName);
+    const noodleTypeLabel = isYakisoba ? "\u713C\u304D\u305D\u3070" : isUdon ? "\u3046\u3069\u3093" : isSoba ? "\u305D\u3070" : "\u9EBA";
+    const n1Mains = [
+      { name: noodleName, baseAmount: 2, unit: "\u7389 (\u888B)", note: "\u8EFD\u304F\u307B\u3050\u3057\u3066\u304A\u304F" },
+      { name: meatOrProtein, baseAmount: 150, unit: "g", note: "\u4E00\u53E3\u5927" },
+      { name: vegName, baseAmount: 180, unit: "g", note: "\u3056\u304F\u5207\u308A" }
+    ];
+    const n1Seasonings = buildSeasoningList([
+      { name: isYakisoba ? hasSauce ? "\u713C\u304D\u305D\u3070\u30BD\u30FC\u30B9" : "\u4E2D\u6FC3\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9\u30FB\u3081\u3093\u3064\u3086" : "\u7279\u88FD\u30BF\u30EC", baseAmount: 2.5, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSaltPepper ? "\u5869\u30FB\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA\uFF08\u30C8\u30C3\u30D4\u30F3\u30B0\uFF09" : "\u9752\u306E\u308A", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    const n2Mains = [
+      { name: noodleName, baseAmount: 2, unit: "\u7389 (\u888B)" },
+      { name: meatOrProtein, baseAmount: 140, unit: "g", note: "\u98DF\u3079\u3084\u3059\u304F\u30AB\u30C3\u30C8" },
+      { name: vegName, baseAmount: 140, unit: "g" }
+    ];
+    const n2Seasonings = buildSeasoningList([
+      { name: hasMentsuyu ? "\u3081\u3093\u3064\u3086" : hasSoySauce ? "\u91A4\u6CB9\u30FB\u307F\u308A\u3093" : "\u548C\u98A8\u3060\u3057", baseAmount: 3, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u3060\u3057", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 500, unit: "ml" },
+      { name: hasGarlicGinger ? "\u751F\u59DC\uFF08\u304A\u308D\u3057\uFF09" : "\u4E03\u5473\u5510\u8F9B\u5B50", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const n3Mains = [
+      { name: noodleName, baseAmount: 2, unit: "\u7389 (\u888B)" },
+      { name: meatOrProtein, baseAmount: 150, unit: "g" },
+      { name: vegName, baseAmount: 150, unit: "g" }
+    ];
+    const n3Seasonings = buildSeasoningList([
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u3081\u3093\u3064\u3086", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasSake ? "\u9152\u30FB\u307F\u308A\u3093" : "\u6C34", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasFlour ? "\u7247\u6817\u7C89\uFF08\u3068\u308D\u307F\u7528\uFF09" : "\u6C34\u6EB6\u304D\u5C0F\u9EA6\u7C89", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u3054\u307E\u6CB9" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const n4Mains = [
+      { name: noodleName, baseAmount: 2, unit: "\u7389 (\u888B)" },
+      { name: meatOrProtein, baseAmount: 120, unit: "g" },
+      { name: vegName, baseAmount: 120, unit: "g" },
+      { name: "\u5375", baseAmount: 2, unit: "\u500B", note: "\u6EB6\u304D\u5375" }
+    ];
+    const n4Seasonings = buildSeasoningList([
+      { name: hasMentsuyu ? "\u3081\u3093\u3064\u3086\uFF08\u307E\u305F\u306F\u767D\u3060\u3057\uFF09" : "\u91A4\u6CB9\u30FB\u307F\u308A\u3093", baseAmount: 2.5, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u6C34", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 400, unit: "ml" }
+    ]);
+    const n5Mains = [
+      { name: noodleName, baseAmount: 2, unit: "\u7389 (\u888B)", note: "\u7D30\u304B\u304F\u5207\u308B\u304B\u5E73\u3089\u306B\u5E83\u3052\u3066\u713C\u304F" },
+      { name: meatOrProtein, baseAmount: 150, unit: "g" },
+      { name: vegName, baseAmount: 150, unit: "g" }
+    ];
+    const n5Seasonings = buildSeasoningList([
+      { name: hasSauce ? "\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    recipes = [
+      {
+        id: "rec_noodle_1",
+        title: `${meatOrProtein}\u3068${vegName}\u306E\u9999\u3070\u3057\u7279\u88FD${noodleTypeLabel}`,
+        subtitle: `\u30D5\u30E9\u30A4\u30D1\u30F31\u3064\u306710\u5206\u5B8C\u6210\uFF01\u5177\u6750\u306E\u65E8\u5473\u304C\u9EBA\u306B\u3057\u3063\u304B\u308A\u7D61\u3080\u4EBA\u6C17\u5B9A\u756A`,
+        description: `\u30B9\u30FC\u30D1\u30FC\u306E\u8339\u3067\u9EBA${noodleName}\u3092\u6D3B\u7528\u3057\u3001${meatOrProtein}\u306E\u30B3\u30AF\u3068${vegName}\u306E\u7518\u307F\u3092\u5F15\u304D\u51FA\u3057\u305F\u7D76\u54C1\u7092\u3081\u9EBA\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u6642\u77ED10\u5206", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u8339\u3067\u9EBA\u6D3B\u7528", "\u4EBA\u6C17\u5B9A\u756A"],
+        baseServings: 2,
+        mainIngredients: n1Mains,
+        seasonings: n1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${meatOrProtein}\u3068${vegName}\u3092\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308A\u307E\u3059\u3002${noodleName}\u306F\u96FB\u5B50\u30EC\u30F3\u30B8\u306730\u79D2\u6E29\u3081\u308B\u304B\u3001\u8EFD\u304F\u307B\u3050\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001${meatOrProtein}\u3092\u7092\u3081\u3066\u8272\u304C\u5909\u308F\u3063\u305F\u3089${vegName}\u3092\u52A0\u3048\u3066\u5F37\u706B\u3067\u30B5\u30C3\u3068\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u307B\u3050\u3057\u305F${noodleName}\u3092\u52A0\u3048\u3001\u6C34\u3092\u5927\u3055\u30582\u7A0B\u5EA6\u56DE\u3057\u5165\u308C\u3066\u30D5\u30BF\u3092\u3057\u3001\u4E2D\u706B\u3067\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 4, instruction: `\u30D5\u30BF\u3092\u53D6\u308A\u3001\u8ABF\u5473\u6599\u3092\u4E00\u6C17\u306B\u52A0\u3048\u3066\u5F37\u706B\u3067\u624B\u65E9\u304F\u7092\u3081\u7D61\u3081\u3001\u5668\u306B\u76DB\u308A\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition(noodleTypeLabel, n1Mains, n1Seasonings), highlights: "\u7CD6\u8CEA\u3068\u305F\u3093\u3071\u304F\u8CEA\u3092\u540C\u6642\u306B\u30C1\u30E3\u30FC\u30B8\u3067\u304D\u3001\u77ED\u6642\u9593\u3067\u30A8\u30CD\u30EB\u30AE\u30FC\u88DC\u7D66\u304C\u53EF\u80FD\u3067\u3059\u3002" },
+        chefTips: "\u9EBA\u3092\u7092\u3081\u308B\u524D\u306B\u30EC\u30F3\u30B8\u3067\u5C11\u3057\u6E29\u3081\u3066\u304A\u304F\u3068\u3001\u5343\u5207\u308C\u305A\u30E2\u30C1\u30E2\u30C1\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_noodle_2",
+        title: `\u5177\u3060\u304F\u3055\u3093${meatOrProtein}\u3068${vegName}\u306E\u3042\u3063\u305F\u304B\u51FA\u6C41\u3064\u3086${noodleTypeLabel}`,
+        subtitle: "\u304A\u51FA\u6C41\u304C\u67D3\u307F\u6E21\u308B\uFF01\u30B3\u30C8\u30B3\u30C8\u716E\u8FBC\u3093\u3060\u5177\u6750\u3067\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB",
+        description: `${meatOrProtein}\u3068\u304A\u91CE\u83DC\u304B\u3089\u51FA\u305F\u81EA\u7136\u306E\u304A\u51FA\u6C41\u304C\u30B9\u30FC\u30D7\u306B\u6EB6\u3051\u8FBC\u307F\u3001\u6700\u5F8C\u306E\u4E00\u6EF4\u307E\u3067\u98F2\u307F\u5E72\u3057\u305F\u304F\u306A\u308B\u512A\u3057\u3044\u5473\u308F\u3044\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB", "\u3064\u3086\u3060\u304F", "\u6D88\u5316\u306B\u826F\u3044", "\u5B9A\u756A\u9EBA"],
+        baseServings: 2,
+        mainIngredients: n2Mains,
+        seasonings: n2Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u934B\u306B\u6C34\u3068\u8ABF\u5473\u6599\u3092\u5165\u308C\u3066\u706B\u306B\u304B\u3051\u3001\u716E\u7ACB\u3063\u305F\u3089${meatOrProtein}\u3068${vegName}\u3092\u52A0\u3048\u3066\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 2, instruction: `${noodleName}\u3092\u934B\u306B\u76F4\u63A5\u52A0\u3048\u3001\u3072\u3068\u716E\u7ACB\u3061\u3055\u305B\u3066\u9EBA\u3092\u6E29\u3081\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 3, instruction: `\u5668\u306B\u76DB\u308A\u4ED8\u3051\u3001\u71B1\u3005\u306E\u304A\u3064\u3086\u3092\u305F\u3063\u3077\u308A\u6CE8\u3044\u3067\u5B8C\u6210\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u3064\u3086\u9EBA", n2Mains, n2Seasonings), highlights: "\u6E29\u304B\u3044\u30B9\u30FC\u30D7\u3067\u80C3\u8178\u3092\u6E29\u3081\u3001\u6D88\u5316\u5438\u53CE\u3092\u52A9\u3051\u308B\u30D8\u30EB\u30B7\u30FC\u306A\u4E00\u676F\u3067\u3059\u3002" },
+        chefTips: "\u304A\u8089\u3092\u5148\u306B\u30B5\u30C3\u3068\u716E\u3066\u30A2\u30AF\u3092\u53D6\u308B\u3053\u3068\u3067\u3001\u6F84\u3093\u3060\u7F8E\u5473\u3057\u3044\u304A\u51FA\u6C41\u306B\u306A\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_noodle_3",
+        title: `${meatOrProtein}\u3068${vegName}\u306E\u3068\u308D\u307F\u65E8\u5869\u3042\u3093\u304B\u3051${noodleTypeLabel}`,
+        subtitle: "\u71B1\u3005\u306E\u3068\u308D\u307F\u304C\u9EBA\u306B\u7D61\u3093\u3067\u51B7\u3081\u306B\u304F\u3044\uFF01\u5927\u6E80\u8DB3\u3054\u3061\u305D\u3046\u9EBA",
+        description: `\u5177\u6750\u305F\u3063\u3077\u308A\u306E\u3068\u308D\u307F\u3042\u3093\u304C${noodleName}\u306B\u3057\u3063\u304B\u308A\u7D61\u3080\u3001\u4E2D\u83EF\u98A8\u306E\u3054\u3061\u305D\u3046\u3042\u3093\u304B\u3051\u9EBA\u3067\u3059\u3002`,
+        cookingTimeMinutes: 14,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u4E2D\u83EF",
+        tags: ["\u3042\u3093\u304B\u3051", "\u71B1\u3005", "\u6E80\u8DB3\u611F", "\u91CE\u83DC\u305F\u3063\u3077\u308A"],
+        baseServings: 2,
+        mainIngredients: n3Mains,
+        seasonings: n3Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${noodleName}\u306F\u8010\u71B1\u76BF\u306B\u5165\u308C\u3001\u96FB\u5B50\u30EC\u30F3\u30B8\u3067\u6E29\u3081\u3066\u5668\u306B\u3088\u305D\u3063\u3066\u304A\u304D\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067${meatOrProtein}\u3068${vegName}\u3092\u7092\u3081\u3001\u8ABF\u5473\u6599\u3068\u6C34\u3092\u52A0\u3048\u3066\u3072\u3068\u716E\u7ACB\u3061\u3055\u305B\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u6C34\u6EB6\u304D\u7247\u6817\u7C89\u3092\u56DE\u3057\u5165\u308C\u3066\u3057\u3063\u304B\u308A\u3068\u308D\u307F\u3092\u3064\u3051\u3001${noodleName}\u306E\u4E0A\u304B\u3089\u305F\u3063\u3077\u308A\u304B\u3051\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u3042\u3093\u304B\u3051\u9EBA", n3Mains, n3Seasonings), highlights: "\u3068\u308D\u307F\u306B\u3088\u3063\u3066\u71B1\u304C\u9003\u3052\u305A\u3001\u91CE\u83DC\u306E\u98DF\u7269\u7E4A\u7DAD\u3082\u305F\u3063\u3077\u308A\u3068\u6442\u53D6\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u3068\u308D\u307F\u3092\u3064\u3051\u305F\u5F8C\u306F1\u5206\u307B\u3069\u3057\u3063\u304B\u308A\u6CB8\u9A30\u3055\u305B\u308B\u3068\u3001\u6642\u9593\u304C\u7D4C\u3063\u3066\u3082\u3068\u308D\u307F\u304C\u7DE9\u307F\u307E\u305B\u3093\u3002"
+      },
+      {
+        id: "rec_noodle_4",
+        title: `\u3075\u3093\u308F\u308A\u5375\u3068\u3058${meatOrProtein}\u3068${vegName}\u306E\u9EC4\u91D1${noodleTypeLabel}`,
+        subtitle: "\u512A\u3057\u3044\u5375\u306E\u30B3\u30AF\u304C\u5305\u307F\u8FBC\u3080\uFF01\u591C\u98DF\u3084\u5FD9\u3057\u3044\u304A\u663C\u306B\u3074\u3063\u305F\u308A\u306E\u4E00\u54C1",
+        description: `\u6EB6\u304D\u5375\u3092\u3075\u3093\u308F\u308A\u6D41\u3057\u8FBC\u307F\u3001\u5177\u6750\u306E\u65E8\u5473\u3068\u9EBA\u3092\u512A\u3057\u304F\u5305\u3093\u3060\u6804\u990A\u30D0\u30E9\u30F3\u30B9\u629C\u7FA4\u306E\u732E\u7ACB\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u5375\u3068\u3058", "\u512A\u3057\u3044\u5473\u308F\u3044", "\u9AD8\u305F\u3093\u3071\u304F", "\u30B9\u30D4\u30FC\u30C9\u98EF"],
+        baseServings: 2,
+        mainIngredients: n4Mains,
+        seasonings: n4Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u5C0F\u934B\u306B\u3064\u3086\u3068\u5177\u6750\u3092\u5165\u308C\u3066\u4E2D\u706B\u3067\u716E\u7ACB\u3066\u3001${noodleName}\u3092\u52A0\u3048\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 2, instruction: `\u716E\u7ACB\u3063\u3066\u3044\u308B\u3068\u3053\u308D\u306B\u6EB6\u304D\u5375\u3092\u83DC\u7BB8\u306B\u4F1D\u308F\u305B\u3066\u7D30\u304F\u6D41\u3057\u5165\u308C\u3001\u706B\u3092\u6B62\u3081\u30D5\u30BF\u3092\u3057\u3066\u84B8\u3089\u3057\u307E\u3059\u3002`, timerMinutes: 1 },
+          { stepNumber: 3, instruction: `\u5668\u306B\u3088\u305D\u3044\u3001\u3075\u3093\u308F\u308A\u534A\u719F\u5375\u306E\u72B6\u614B\u3067\u3044\u305F\u3060\u304D\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u5375\u3068\u3058\u9EBA", n4Mains, n4Seasonings), highlights: "\u5375\u3068\u304A\u8089\u306E\u826F\u8CEA\u305F\u3093\u3071\u304F\u8CEA\u304C\u52B9\u7387\u3088\u304F\u88DC\u7D66\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u5375\u3092\u5165\u308C\u308B\u6642\u306F\u3057\u3063\u304B\u308A\u6CB8\u9A30\u3055\u305B\u3066\u304B\u3089\u706B\u3092\u6B62\u3081\u308B\u3068\u3001\u3075\u308F\u3075\u308F\u306E\u82B1\u304C\u54B2\u3044\u305F\u3088\u3046\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_noodle_5",
+        title: `${meatOrProtein}\u3068${vegName}\u306E\u30D1\u30EA\u30C3\u3068\u9999\u3070\u3057\u713C\u304D${noodleTypeLabel}`,
+        subtitle: "\u4E21\u9762\u30AB\u30EA\u30C3\u3068\u713C\u304D\u4E0A\u3052\u305F\u9EBA\u306B\u5177\u6750\u3092\u30C8\u30C3\u30D4\u30F3\u30B0\uFF01\u98DF\u611F\u304C\u697D\u3057\u3044\u30A2\u30EC\u30F3\u30B8",
+        description: `\u9EBA\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u62BC\u3057\u4ED8\u3051\u306A\u304C\u3089\u4E21\u9762\u30AB\u30EA\u30AB\u30EA\u306B\u713C\u304D\u4E0A\u3052\u3001\u9999\u3070\u3057\u3055\u3092\u6975\u9650\u307E\u3067\u9AD8\u3081\u305F\u7D76\u54C1\u30A2\u30EC\u30F3\u30B8\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30AB\u30EA\u30AB\u30EA\u98DF\u611F", "\u304A\u3064\u307E\u307F\u306B\u3082", "\u9999\u3070\u3057\u3044", "\u65B0\u5B9A\u756A"],
+        baseServings: 2,
+        mainIngredients: n5Mains,
+        seasonings: n5Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u591A\u3081\u306E\u6CB9\u3092\u71B1\u3057\u3001${noodleName}\u3092\u4E38\u304F\u5E83\u3052\u3066\u30D8\u30E9\u3067\u62BC\u3057\u4ED8\u3051\u306A\u304C\u3089\u4E21\u9762\u3092\u30AB\u30EA\u30C3\u3068\u713C\u304D\u3001\u304A\u76BF\u306B\u53D6\u308A\u51FA\u3057\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 2, instruction: `\u540C\u3058\u30D5\u30E9\u30A4\u30D1\u30F3\u3067${meatOrProtein}\u3068${vegName}\u3092\u7092\u3081\u3001\u8ABF\u5473\u6599\u3067\u5473\u4ED8\u3051\u3057\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u30AB\u30EA\u30AB\u30EA\u306B\u713C\u3044\u305F${noodleName}\u306E\u4E0A\u306B\u5177\u6750\u3092\u306E\u305B\u3066\u5B8C\u6210\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u713C\u304D\u9EBA", n5Mains, n5Seasonings), highlights: "\u9999\u3070\u3057\u3044\u713C\u304D\u76EE\u306B\u3088\u308B\u98A8\u5473\u3067\u3001\u98DF\u6B32\u304C\u305D\u305D\u3089\u308C\u307E\u3059\u3002" },
+        chefTips: "\u9EBA\u3092\u713C\u304F\u6642\u306F\u3042\u307E\u308A\u89E6\u3089\u305A\u3001\u3058\u3063\u304F\u308A\u4E2D\u706B\u3067\u713C\u304D\u8272\u3092\u3064\u3051\u308B\u306E\u304C\u30AB\u30EA\u30AB\u30EA\u306E\u79D8\u8A23\u3067\u3059\u3002"
+      }
+    ];
+  } else if (/こんにゃく|蒟蒻|コンニャク|しらたき|白滝|糸こん/.test(searchStr)) {
+    const konjacName = allInputs.find((i) => /こんにゃく|蒟蒻|コンニャク|しらたき|白滝|糸こん/.test(i)) || "\u677F\u3053\u3093\u306B\u3083\u304F";
+    const otherProtein = allInputs.find((i) => i !== konjacName && (categorizeIngredient(i) === "meat" || categorizeIngredient(i) === "fish" || /あげ|豆腐/.test(i))) || "\u8C5A\u30D0\u30E9\u8089\uFF08\u307E\u305F\u306F\u9D8F\u8089\uFF09";
+    const otherVeg = allInputs.find((i) => i !== konjacName && i !== otherProtein) || "\u9577\u30CD\u30AE\u30FB\u5927\u6839\u30FB\u304D\u306E\u3053";
+    const k1Mains = [
+      { name: konjacName, baseAmount: 1, unit: "\u679A (\u7D04250g)", note: "\u624B\u3084\u30B9\u30D7\u30FC\u30F3\u3067\u4E00\u53E3\u5927\u306B\u3061\u304E\u308B" },
+      { name: "\u9577\u30CD\u30AE\u307E\u305F\u306F\u85AC\u5473\u306D\u304E", baseAmount: 0.5, unit: "\u672C", note: "\u5C0F\u53E3\u5207\u308A" }
+    ];
+    const k1Seasonings = buildSeasoningList([
+      { name: hasSoySauce ? "\u91A4\u6CB9" : hasMentsuyu ? "\u3081\u3093\u3064\u3086" : "\u7279\u88FD\u30BF\u30EC", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : hasSugar ? "\u7802\u7CD6" : "\u9152", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSugar ? "\u7802\u7CD6" : "\u307F\u308A\u3093", baseAmount: 0.5, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u3054\u307E\u6CB9\uFF08\u307E\u305F\u306F\u30B5\u30E9\u30C0\u6CB9\uFF09" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: "\u767D\u3044\u308A\u3054\u307E\u30FB\u4E00\u5473\u5510\u8F9B\u5B50", baseAmount: 1, unit: "\u5C11\u3005", preferred: true }
+    ]);
+    const k2Mains = [
+      { name: konjacName, baseAmount: 1, unit: "\u679A (\u7D04250g)", note: "\u30B9\u30D7\u30FC\u30F3\u3067\u3061\u304E\u308B\u304B\u683C\u5B50\u72B6\u306B\u96A0\u3057\u5305\u4E01" },
+      { name: otherProtein, baseAmount: 150, unit: "g", note: "\u4E00\u53E3\u5927" },
+      { name: otherVeg, baseAmount: 120, unit: "g", note: "\u4E71\u5207\u308A" }
+    ];
+    const k2Seasonings = buildSeasoningList([
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u3081\u3093\u3064\u3086", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : "\u7802\u7CD6", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasSake ? "\u9152" : "\u6C34", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u3060\u3057", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 200, unit: "ml" }
+    ]);
+    const k3Mains = [
+      { name: konjacName, baseAmount: 1, unit: "\u679A (\u7D04250g)", note: "\u4E21\u9762\u306B\u683C\u5B50\u72B6\u306E\u5207\u308A\u8FBC\u307F\u3092\u5165\u308C\u3066\u539A\u5207\u308A" },
+      { name: "\u5927\u8449\u30FB\u9752\u306D\u304E\uFF08\u3042\u308C\u3070\uFF09", baseAmount: 2, unit: "\u679A", note: "\u30C8\u30C3\u30D4\u30F3\u30B0" }
+    ];
+    const k3Seasonings = buildSeasoningList([
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u30DD\u30F3\u9162", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : "\u7802\u7CD6", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasGarlicGinger ? "\u306B\u3093\u306B\u304F\uFF08\u3059\u308A\u304A\u308D\u3057\u307E\u305F\u306F\u30B9\u30E9\u30A4\u30B9\uFF09" : "\u751F\u59DC", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" },
+      { name: hasOil ? "\u3054\u307E\u6CB9\u307E\u305F\u306F\u30D0\u30BF\u30FC" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSaltPepper ? "\u9ED2\u3053\u3057\u3087\u3046" : "\u5869", baseAmount: 1, unit: "\u5C11\u3005" }
+    ]);
+    const k4Mains = [
+      { name: konjacName, baseAmount: 0.5, unit: "\u679A (\u7D04130g)", note: "\u77ED\u518A\u5207\u308A\u307E\u305F\u306F\u3061\u304E\u308A" },
+      { name: otherProtein, baseAmount: 100, unit: "g", note: "\u7D30\u5207\u308C" },
+      { name: otherVeg, baseAmount: 150, unit: "g", note: "\u3044\u3061\u3087\u3046\u5207\u308A" }
+    ];
+    const k4Seasonings = buildSeasoningList([
+      { name: hasMiso ? "\u5473\u564C" : hasSoySauce ? "\u91A4\u6CB9" : "\u3081\u3093\u3064\u3086", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u3060\u3057", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 450, unit: "ml" },
+      { name: hasOil ? "\u3054\u307E\u6CB9\uFF08\u7092\u3081\u7528\uFF09" : "\u6CB9", baseAmount: 1, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const k5Mains = [
+      { name: konjacName, baseAmount: 1, unit: "\u679A (\u7D04250g)", note: "\u4E09\u89D2\u307E\u305F\u306F\u9577\u65B9\u5F62\u306B\u30AB\u30C3\u30C8\u3057\u3066\u96A0\u3057\u5305\u4E01" }
+    ];
+    const k5Seasonings = buildSeasoningList([
+      { name: hasMiso ? "\u5473\u564C" : "\u91A4\u6CB9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasSugar ? "\u7802\u7CD6" : hasMirin ? "\u307F\u308A\u3093" : "\u9152", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : "\u9152", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSake ? "\u9152" : "\u6C34", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: "\u767D\u3044\u308A\u3054\u307E", baseAmount: 1, unit: "\u5C0F\u3055\u3058", preferred: true }
+    ]);
+    recipes = [
+      {
+        id: "rec_konjac_1",
+        title: `\u30D4\u30EA\u8F9B\u3054\u307E\u6CB9\u9999\u308B ${konjacName}\u306E\u7518\u8F9B\u96F7\u7092\u3081\uFF08\u96F7\u3053\u3093\u306B\u3083\u304F\uFF09`,
+        subtitle: "\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u30D1\u30C1\u30D1\u30C1\u7092\u3081\u3066\u65E8\u5473\u51DD\u7E2E\uFF01\u4F4E\u30AB\u30ED\u30EA\u30FC\u3067\u5927\u6E80\u8DB3\u306E\u5E38\u5099\u83DC",
+        description: `${konjacName}\u3092\u624B\u3084\u30B9\u30D7\u30FC\u30F3\u3067\u3061\u304E\u308B\u3053\u3068\u3067\u65AD\u9762\u304C\u51F8\u51F9\u306B\u306A\u308A\u3001\u9999\u3070\u3057\u3044\u7518\u8F9B\u30C0\u30EC\u304C\u9A5A\u304F\u307B\u3069\u3088\u304F\u7D61\u307F\u307E\u3059\u3002\u3054\u307E\u6CB9\u306E\u9999\u308A\u3068\u4E00\u5473\u306E\u30D4\u30EA\u8F9B\u3055\u304C\u30A2\u30AF\u30BB\u30F3\u30C8\u306E\u7D76\u54C1\u304A\u304B\u305A\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u8D85\u4F4E\u30AB\u30ED\u30EA\u30FC", "\u98DF\u7269\u7E4A\u7DAD\u305F\u3063\u3077\u308A", "\u304A\u3064\u307E\u307F", "\u4F5C\u308A\u7F6E\u304D", "\u6642\u77ED10\u5206"],
+        baseServings: 2,
+        mainIngredients: k1Mains,
+        seasonings: k1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${konjacName}\u306F\u30B9\u30D7\u30FC\u30F3\u3067\u4E00\u53E3\u5927\u306B\u3061\u304E\u308A\u3001\u71B1\u6E6F\u30672\u5206\u4E0B\u8339\u3067\u3057\u3066\u30B6\u30EB\u306B\u3042\u3052\u3001\u3057\u3063\u304B\u308A\u6C34\u6C17\u3092\u5207\u308A\u307E\u3059\uFF08\u30A2\u30AF\u629C\u304D\u6E08\u307F\u306A\u3089\u6C34\u6D17\u3044\u306E\u307F\u3067OK\uFF09\u3002` },
+          { stepNumber: 2, instruction: `\u6CB9\u3092\u5F15\u304B\u306A\u3044\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u3053\u3093\u306B\u3083\u304F\u3092\u5165\u308C\u3001\u4E2D\u706B\u3067\u30D1\u30C1\u30D1\u30C1\u3068\u97F3\u304C\u9CF4\u308B\u307E\u3067\u6C34\u5206\u3092\u98DB\u3070\u3059\u3088\u3046\u306B\u4E7E\u714E\u308A\u3057\u307E\u3059\u3002`, timerMinutes: 3, tip: "\u3057\u3063\u304B\u308A\u4E7E\u714E\u308A\u3057\u3066\u8868\u9762\u306E\u6C34\u5206\u3092\u98DB\u3070\u3059\u3053\u3068\u3067\u5473\u304C\u30AE\u30E5\u30C3\u3068\u67D3\u307F\u8FBC\u307F\u307E\u3059\u3002" },
+          { stepNumber: 3, instruction: `\u3054\u307E\u6CB9\u3092\u56DE\u3057\u5165\u308C\u3066\u5168\u4F53\u306B\u99B4\u67D3\u307E\u305B\u3001\u8ABF\u5473\u6599\uFF08\u91A4\u6CB9\u3001\u307F\u308A\u3093\u3001\u7802\u7CD6\uFF09\u3092\u4E00\u6C17\u306B\u52A0\u3048\u307E\u3059\u3002` },
+          { stepNumber: 4, instruction: `\u6C41\u6C17\u304C\u306A\u304F\u306A\u308B\u307E\u3067\u5F37\u706B\u3067\u624B\u65E9\u304F\u7092\u3081\u716E\u306B\u3057\u3001\u4ED5\u4E0A\u3052\u306B\u767D\u3054\u307E\u3068\u4E00\u5473\u5510\u8F9B\u5B50\u3092\u632F\u3063\u3066\u5B8C\u6210\u3067\u3059\uFF01`, timerMinutes: 2 }
+        ],
+        nutritionPerServing: { calories: 65, protein: 1.2, fat: 3.5, carbohydrates: 7.8, saltEquivalent: 1.1, highlights: "\u3053\u3093\u306B\u3083\u304F\u306E\u4E3B\u6210\u5206\u30B0\u30EB\u30B3\u30DE\u30F3\u30CA\u30F3\uFF08\u98DF\u7269\u7E4A\u7DAD\uFF09\u304C\u8C4A\u5BCC\u3067\u3001\u307B\u307C\u30CE\u30F3\u30AB\u30ED\u30EA\u30FC\u306A\u306E\u306B\u629C\u7FA4\u306E\u6E80\u8179\u611F\u3002" },
+        chefTips: "\u5305\u4E01\u3067\u5207\u308B\u306E\u3067\u306F\u306A\u304F\u3001\u30B9\u30D7\u30FC\u30F3\u3067\u3061\u304E\u308B\u3068\u30BF\u30EC\u304C\u7D61\u3080\u8868\u9762\u7A4D\u304C\u500D\u5897\u3057\u307E\u3059\uFF01"
+      },
+      {
+        id: "rec_konjac_2",
+        title: `\u5473\u304C\u3058\u3085\u308F\u3063\u3068\u67D3\u307F\u8FBC\u3080\uFF01${otherProtein}\u3068${konjacName}\u306E\u307B\u3063\u3053\u308A\u7518\u8F9B\u716E\u7269`,
+        subtitle: "\u7D20\u6750\u306E\u65E8\u5473\u3092\u51FA\u6C41\u3054\u3068\u716E\u542B\u3081\u308B\uFF01\u51B7\u3081\u3066\u3082\u7F8E\u5473\u3057\u3044\u5B9A\u756A\u304A\u3075\u304F\u308D\u306E\u5473",
+        description: `${otherProtein}\u306E\u30B8\u30E5\u30FC\u30B7\u30FC\u306A\u30B3\u30AF\u3068\u548C\u98A8\u51FA\u6C41\u304C${konjacName}\u306E\u82AF\u307E\u3067\u3058\u3063\u304F\u308A\u67D3\u307F\u8FBC\u3093\u3060\u512A\u3057\u3044\u716E\u7269\u3002\u3054\u98EF\u306E\u304A\u304B\u305A\u306B\u3082\u6669\u914C\u306B\u3082\u6700\u9069\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u304A\u3075\u304F\u308D\u306E\u5473", "\u5473\u67D3\u307F", "\u30D8\u30EB\u30B7\u30FC", "\u304A\u5F01\u5F53\u306B\u3082"],
+        baseServings: 2,
+        mainIngredients: k2Mains,
+        seasonings: k2Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${konjacName}\u306F\u683C\u5B50\u72B6\u306B\u96A0\u3057\u5305\u4E01\u3092\u5165\u308C\u3066\u4E00\u53E3\u5927\u306B\u5207\u308A\u3001\u4E0B\u8339\u3067\u3057\u307E\u3059\u3002${otherProtein}\u3068${otherVeg}\u3082\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u306B\u5C11\u91CF\u306E\u6CB9\u3092\u71B1\u3057\u3001${otherProtein}\u3068${konjacName}\u3001${otherVeg}\u3092\u4E2D\u706B\u30672\u5206\u307B\u3069\u7092\u3081\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u6C34\u3001\u548C\u98A8\u3060\u3057\u3001\u9152\u3001\u307F\u308A\u3093\u3001\u91A4\u6CB9\u3092\u52A0\u3048\u3001\u843D\u3068\u3057\u84CB\u3092\u3057\u3066\u5F31\u4E2D\u706B\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 8 },
+          { stepNumber: 4, instruction: `\u716E\u6C41\u304C\u5C11\u306A\u304F\u306A\u3063\u3066\u304D\u305F\u3089\u843D\u3068\u3057\u84CB\u3092\u5916\u3057\u3001\u5F37\u706B\u3067\u30B5\u30C3\u3068\u7167\u308A\u3092\u51FA\u3057\u3066\u706B\u3092\u6B62\u3081\u307E\u3059\u3002\u4E00\u5EA6\u51B7\u307E\u3059\u3068\u3055\u3089\u306B\u5473\u304C\u67D3\u307F\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 195, protein: 14.5, fat: 11.2, carbohydrates: 8.6, saltEquivalent: 1.6, highlights: "\u826F\u8CEA\u306A\u305F\u3093\u3071\u304F\u8CEA\u3068\u3053\u3093\u306B\u3083\u304F\u306E\u98DF\u7269\u7E4A\u7DAD\u304C\u8178\u5185\u74B0\u5883\u3092\u6574\u3048\u3001\u4EE3\u8B1D\u3092\u30B5\u30DD\u30FC\u30C8\u3057\u307E\u3059\u3002" },
+        chefTips: "\u683C\u5B50\u72B6\u306B\u7D30\u304B\u304F\u96A0\u3057\u5305\u4E01\u3092\u5165\u308C\u3066\u304A\u304F\u3068\u3001\u77ED\u6642\u9593\u306E\u716E\u8FBC\u307F\u3067\u3082\u4E2D\u307E\u3067\u5473\u304C\u3057\u3063\u304B\u308A\u67D3\u307F\u8FBC\u307F\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_konjac_3",
+        title: `\u9999\u3070\u3057\u30AC\u30FC\u30EA\u30C3\u30AF\u91A4\u6CB9\u4ED5\u7ACB\u3066 ${konjacName}\u306E\u6975\u4E0A\u30D8\u30EB\u30B7\u30FC\u30B9\u30C6\u30FC\u30AD`,
+        subtitle: "\u5207\u308A\u8FBC\u307F\u3092\u5165\u308C\u3066\u30AB\u30EA\u30C3\u3068\u713C\u304D\u4E0A\u3052\u308B\uFF01\u304A\u8089\u306B\u8CA0\u3051\u306A\u3044\u6E80\u8DB3\u611F\u3068\u9999\u3070\u3057\u3055",
+        description: `\u8868\u9762\u306B\u7D30\u304B\u304F\u683C\u5B50\u72B6\u306E\u5207\u308A\u8FBC\u307F\u3092\u5165\u308C\u3001\u306B\u3093\u306B\u304F\u91A4\u6CB9\u3068\u3054\u307E\u6CB9\uFF08\u307E\u305F\u306F\u30D0\u30BF\u30FC\uFF09\u3067\u30AB\u30EA\u30C3\u3068\u9999\u3070\u3057\u304F\u713C\u304D\u4E0A\u3052\u305F\u30B9\u30C6\u30FC\u30AD\u3002\u4F4E\u30AB\u30ED\u30EA\u30FC\u3067\u7F6A\u60AA\u611F\u30BC\u30ED\u306E\u3054\u3061\u305D\u3046\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30C0\u30A4\u30A8\u30C3\u30C8", "\u9999\u3070\u3057\u30B9\u30C6\u30FC\u30AD", "\u6642\u77ED10\u5206", "\u6E80\u8DB3\u611F\u629C\u7FA4"],
+        baseServings: 2,
+        mainIngredients: k3Mains,
+        seasonings: k3Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${konjacName}\u306F\u4E21\u9762\u306B\u6DF1\u30553mm\u7A0B\u5EA6\u306E\u683C\u5B50\u72B6\u306E\u5207\u308A\u8FBC\u307F\u3092\u5165\u308C\u3001\u98DF\u3079\u3084\u3059\u3044\u539A\u5207\u308A\uFF084\u301C6\u7B49\u5206\uFF09\u306B\u30AB\u30C3\u30C8\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3068\u3059\u308A\u304A\u308D\u3057\u306B\u3093\u306B\u304F\u3092\u5F31\u706B\u3067\u71B1\u3057\u3001\u9999\u308A\u304C\u7ACB\u3063\u305F\u3089${konjacName}\u3092\u4E26\u3079\u5165\u308C\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u4E2D\u706B\u3067\u30D8\u30E9\u3067\u62BC\u3057\u4ED8\u3051\u306A\u304C\u3089\u4E21\u9762\u3092\u3053\u3093\u304C\u308A\u304D\u3064\u306D\u8272\u306B\u306A\u308B\u307E\u3067\u3057\u3063\u304B\u308A\u713C\u304D\u8272\u3092\u3064\u3051\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 4, instruction: `\u91A4\u6CB9\u3068\u307F\u308A\u3093\u3092\u934B\u808C\u304B\u3089\u56DE\u3057\u5165\u308C\u3001\u9999\u3070\u3057\u3044\u30BF\u30EC\u3092\u30B9\u30D7\u30FC\u30F3\u3067\u304B\u3051\u306A\u304C\u3089\u3053\u3093\u306B\u3083\u304F\u306B\u7D61\u3081\u3066\u5B8C\u6210\u3067\u3059\uFF01` }
+        ],
+        nutritionPerServing: { calories: 78, protein: 1.5, fat: 4.2, carbohydrates: 6.8, saltEquivalent: 1.2, highlights: "\u306B\u3093\u306B\u304F\u306E\u30A2\u30EA\u30B7\u30F3\u304C\u4EE3\u8B1D\u3092\u9AD8\u3081\u3001\u4F4E\u7CD6\u8CEA\u30FB\u4F4E\u8102\u8CEA\u3067\u591C\u9045\u304F\u306E\u98DF\u4E8B\u306B\u3082\u5B89\u5FC3\u3067\u3059\u3002" },
+        chefTips: "\u30D8\u30E9\u3067\u3057\u3063\u304B\u308A\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u62BC\u3057\u4ED8\u3051\u306A\u304C\u3089\u713C\u304F\u3068\u3001\u8868\u9762\u304C\u30AB\u30EA\u30C3\u3068\u9999\u3070\u3057\u304F\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_konjac_4",
+        title: `\u5177\u3060\u304F\u3055\u3093${otherProtein}\u3068${konjacName}\u306E\u3042\u3063\u305F\u304B\u98DF\u3079\u308B\u5177\u3060\u304F\u3055\u3093\u6C41`,
+        subtitle: "\u51FA\u6C41\u3068\u5473\u564C\u304C\u8EAB\u4F53\u306E\u82AF\u307E\u3067\u67D3\u307F\u6E21\u308B\uFF01\u3053\u308C1\u676F\u3067\u6804\u990A\u6E80\u70B9\u306E\u6E29\u6D3B\u30E1\u30CB\u30E5\u30FC",
+        description: `${otherProtein}\u306E\u65E8\u5473\u3068${konjacName}\u306E\u30D7\u30EA\u30C3\u3068\u3057\u305F\u98DF\u611F\u304C\u697D\u3057\u3044\u5177\u3060\u304F\u3055\u3093\u306E\u304A\u6C41\u3002\u6E29\u304B\u3044\u51FA\u6C41\u304C\u80C3\u8178\u3092\u512A\u3057\u304F\u6E29\u3081\u307E\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u98DF\u3079\u308B\u30B9\u30FC\u30D7", "\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB", "\u5177\u3060\u304F\u3055\u3093", "\u6E29\u6D3B"],
+        baseServings: 2,
+        mainIngredients: k4Mains,
+        seasonings: k4Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${konjacName}\u306F\u77ED\u518A\u5207\u308A\u3001${otherProtein}\u3068${otherVeg}\u3082\u5C0F\u3055\u3081\u306B\u5207\u308A\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u934B\u306B\u3054\u307E\u6CB9\u3092\u71B1\u3057\u3066\u5177\u6750\u3092\u30B5\u30C3\u3068\u7092\u3081\u3001\u6C34\u3092\u52A0\u3048\u3066\u716E\u7ACB\u305F\u305B\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `\u548C\u98A8\u3060\u3057\u3092\u52A0\u3048\u3001\u5F31\u706B\u3067\u91CE\u83DC\u304C\u67D4\u3089\u304B\u304F\u306A\u308B\u307E\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 4, instruction: `\u706B\u3092\u5F31\u3081\u3066\u5473\u564C\u3092\u6EB6\u304D\u5165\u308C\u3001\u3072\u3068\u716E\u7ACB\u3061\u3059\u308B\u76F4\u524D\u3067\u706B\u3092\u6B62\u3081\u307E\u3059\u3002\u304A\u597D\u307F\u3067\u4E03\u5473\u5510\u8F9B\u5B50\u3092\u6DFB\u3048\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 155, protein: 11.8, fat: 8.5, carbohydrates: 7.2, saltEquivalent: 1.5, highlights: "\u767A\u9175\u98DF\u54C1\u306E\u5473\u564C\u3068\u3053\u3093\u306B\u3083\u304F\u306E\u98DF\u7269\u7E4A\u7DAD\u3067\u30C0\u30D6\u30EB\u306E\u8178\u6D3B\u52B9\u679C\u304C\u5F97\u3089\u308C\u307E\u3059\u3002" },
+        chefTips: "\u5177\u6750\u3092\u716E\u308B\u524D\u306B\u3054\u307E\u6CB9\u3067\u7092\u3081\u308B\u3053\u3068\u3067\u3001\u30B9\u30FC\u30D7\u306B\u6DF1\u3044\u30B3\u30AF\u3068\u9999\u308A\u304C\u751F\u307E\u308C\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_konjac_5",
+        title: `\u9999\u3070\u3057\u5473\u564C\u7530\u697D\u98A8 ${konjacName}\u306E\u3053\u3063\u3066\u308A\u7518\u8F9B\u5473\u564C\u713C\u304D`,
+        subtitle: "\u7518\u8F9B\u7279\u88FD\u5473\u564C\u304C\u9999\u3070\u3057\u304F\u7D61\u3080\uFF01\u6614\u306A\u304C\u3089\u306E\u30DB\u30C3\u3068\u3059\u308B\u7F8E\u5473\u3057\u3055",
+        description: `\u6E29\u3081\u305F${konjacName}\u306B\u3001\u5473\u564C\u30FB\u307F\u308A\u3093\u30FB\u7802\u7CD6\u3092\u7DF4\u308A\u4E0A\u3052\u305F\u7279\u88FD\u7518\u8F9B\u7530\u697D\u5473\u564C\u3092\u3068\u308D\u308A\u3068\u304B\u3051\u305F\u9999\u3070\u3057\u3044\u4E00\u54C1\u3002\u7D20\u6734\u306A\u304C\u3089\u7BB8\u304C\u6B62\u307E\u3089\u306A\u3044\u5473\u308F\u3044\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u4F1D\u7D71\u548C\u98DF", "\u5473\u564C\u7530\u697D", "\u6642\u77ED10\u5206", "\u30DB\u30C3\u3068\u3059\u308B\u5473"],
+        baseServings: 2,
+        mainIngredients: k5Mains,
+        seasonings: k5Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${konjacName}\u306F\u4E09\u89D2\u307E\u305F\u306F\u56DB\u89D2\u306B\u5207\u308A\u3001\u4E21\u9762\u306B\u6D45\u304F\u96A0\u3057\u5305\u4E01\u3092\u5165\u308C\u3066\u304A\u6E6F\u3067\u6E29\u3081\u3066\u304A\u304D\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u5C0F\u934B\u307E\u305F\u306F\u30EC\u30F3\u30B8\u3067\u5473\u564C\u3001\u7802\u7CD6\u3001\u307F\u308A\u3093\u3001\u9152\u3092\u3088\u304F\u7DF4\u308A\u6DF7\u305C\u3001\u5F31\u706B\u3067\u3068\u308D\u307F\u304C\u3064\u304F\u307E\u3067\u7DF4\u308A\u4E0A\u3052\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 3, instruction: `\u6C34\u6C17\u3092\u3057\u3063\u304B\u308A\u5207\u3063\u305F${konjacName}\u3092\u76BF\u306B\u4E26\u3079\u3001\u71B1\u3005\u306E\u7518\u8F9B\u7279\u88FD\u5473\u564C\u3092\u305F\u3063\u3077\u308A\u304B\u3051\u307E\u3059\u3002` },
+          { stepNumber: 4, instruction: `\u4ED5\u4E0A\u3052\u306B\u767D\u3054\u307E\u3092\u3075\u3063\u3066\u9999\u3070\u3057\u304F\u3044\u305F\u3060\u304D\u307E\u3059\u3002\u30C8\u30FC\u30B9\u30BF\u30FC\u3067\u8EFD\u304F\u713C\u3044\u3066\u3082\u7D76\u54C1\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 88, protein: 2.8, fat: 1.8, carbohydrates: 14.5, saltEquivalent: 1.4, highlights: "\u5927\u8C46\u767A\u9175\u30A4\u30BD\u30D5\u30E9\u30DC\u30F3\u3068\u3053\u3093\u306B\u3083\u304F\u306E\u76F8\u4E57\u52B9\u679C\u3067\u3001\u7F8E\u5BB9\u3068\u5065\u5EB7\u3092\u5F37\u529B\u306B\u30B5\u30DD\u30FC\u30C8\u3057\u307E\u3059\u3002" },
+        chefTips: "\u7530\u697D\u5473\u564C\u306B\u5C11\u3057\u3059\u308A\u3054\u307E\u3084\u751F\u59DC\u3092\u6DF7\u305C\u308B\u3068\u3001\u3055\u3089\u306B\u98A8\u5473\u8C4A\u304B\u306A\u30D7\u30ED\u306E\u5473\u306B\u306A\u308A\u307E\u3059\u3002"
+      }
+    ];
+  } else if (hasTofu) {
+    const tofuName = allInputs.find((i) => /豆腐|とうふ|厚揚げ|絹|木綿/.test(i)) || "\u7D79\u3054\u3057\u8C46\u8150";
+    const otherMeat = allInputs.find((i) => i !== tofuName && categorizeIngredient(i) === "meat") || "\u8C5A\u3072\u304D\u8089\uFF08\u307E\u305F\u306F\u8C5A\u3053\u307E\u5207\u308C\u8089\uFF09";
+    const otherVeg = allInputs.find((i) => i !== tofuName && i !== otherMeat) || "\u9577\u30CD\u30AE\uFF08\u307E\u305F\u306F\u7389\u306D\u304E\uFF09";
+    const t1Mains = [
+      { name: tofuName, baseAmount: 1, unit: "\u4E01 (\u7D04300g)", note: "\u3055\u3044\u306E\u76EE\u5207\u308A\uFF08\u8EFD\u304F\u6C34\u5207\u308A\uFF09" },
+      { name: otherMeat, baseAmount: 120, unit: "g", note: "\u3072\u304D\u8089\u307E\u305F\u306F\u7D30\u5207\u308A" },
+      { name: "\u9577\u30CD\u30AE", baseAmount: 0.5, unit: "\u672C", note: "\u307F\u3058\u3093\u5207\u308A" }
+    ];
+    const t1Seasonings = buildSeasoningList([
+      { name: hasOyster ? "\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9" : "\u5473\u564C", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasDoubanjiang ? "\u8C46\u677F\u91A4" : hasMiso ? "\u5473\u564C" : "\u91A4\u6CB9", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u3081\u3093\u3064\u3086", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasChickenStock ? "\u9D8F\u30AC\u30E9\u30B9\u30FC\u30D7\u306E\u7D20" : "\u548C\u98A8\u3060\u3057", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 150, unit: "ml" },
+      { name: "\u7247\u6817\u7C89\uFF08\u6C34\u6EB6\u304D\u7247\u6817\u7C89\uFF09", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u3054\u307E\u6CB9\uFF08\u307E\u305F\u306F\u30B5\u30E9\u30C0\u6CB9\uFF09" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    const t2Mains = [
+      { name: tofuName, baseAmount: 1, unit: "\u4E01 (\u7D04300g)", note: "\u5927\u304D\u3081\u306E\u3072\u3068\u53E3\u5927\u306B\u5207\u308B" },
+      { name: otherMeat, baseAmount: 150, unit: "g", note: "\u98DF\u3079\u3084\u3059\u304F\u5207\u308B" },
+      { name: "\u7389\u306D\u304E\u307E\u305F\u306F\u9577\u30CD\u30AE", baseAmount: 0.5, unit: "\u500B", note: "\u304F\u3057\u5F62\u5207\u308A\u307E\u305F\u306F\u659C\u3081\u5207\u308A" }
+    ];
+    const t2Seasonings = buildSeasoningList([
+      { name: hasSoySauce ? "\u91A4\u6CB9" : hasMentsuyu ? "\u3081\u3093\u3064\u3086" : "\u8ABF\u5473\u30BF\u30EC", baseAmount: 2.5, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : "\u7802\u7CD6", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasSugar ? "\u7802\u7CD6" : "\u307F\u308A\u3093", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSake ? "\u6599\u7406\u9152" : "\u6C34", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u3060\u3057\u306E\u7D20" : "\u3060\u3057\u6C41", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 100, unit: "ml" }
+    ]);
+    const t3Mains = [
+      { name: tofuName, baseAmount: 1, unit: "\u4E01 (\u7D04300g)", note: "\u6C34\u5207\u308A\u3057\u3066\u539A\u3081\u306E4\u7B49\u5206\u306B\u5207\u308B" },
+      { name: "\u304D\u306E\u3053\u985E\uFF08\u3057\u3081\u3058\u30FB\u3048\u306E\u304D\u30FB\u690E\u8338\uFF09", baseAmount: 80, unit: "g", note: "\u77F3\u3065\u304D\u3092\u53D6\u3063\u3066\u307B\u3050\u3059" },
+      { name: "\u9577\u30CD\u30AE\u307E\u305F\u306F\u85AC\u5473\u306D\u304E", baseAmount: 0.3, unit: "\u672C", note: "\u5C0F\u53E3\u5207\u308A" }
+    ];
+    const t3Seasonings = buildSeasoningList([
+      { name: hasOyster ? "\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9" : "\u30DD\u30F3\u9162", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u3081\u3093\u3064\u3086", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : "\u7802\u7CD6", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: "\u7247\u6817\u7C89\uFF08\u307E\u3076\u3057\u7528\uFF06\u3042\u3093\u304B\u3051\u7528\uFF09", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9\uFF08\u307E\u305F\u306F\u3054\u307E\u6CB9\uFF09" : "\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 100, unit: "ml" }
+    ]);
+    const t4Mains = [
+      { name: tofuName, baseAmount: 0.5, unit: "\u4E01 (\u7D04150g)", note: "\u4E00\u53E3\u5927\u306E\u89D2\u5207\u308A\u307E\u305F\u306F\u624B\u3067\u3061\u304E\u308B" },
+      { name: "\u30AD\u30E3\u30D9\u30C4\u307E\u305F\u306F\u767D\u83DC", baseAmount: 100, unit: "g", note: "\u3056\u304F\u5207\u308A" },
+      { name: "\u5375", baseAmount: 1, unit: "\u500B", note: "\u6EB6\u304D\u307B\u3050\u3059" }
+    ];
+    const t4Seasonings = buildSeasoningList([
+      { name: hasChickenStock ? "\u9D8F\u30AC\u30E9\u30B9\u30FC\u30D7\u306E\u7D20" : "\u548C\u98A8\u3060\u3057", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasSoySauce ? "\u91A4\u6CB9" : "\u5869", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: hasOyster ? "\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\uFF08\u30B3\u30AF\u51FA\u3057\uFF09" : "\u307F\u308A\u3093", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34\u6EB6\u304D\u7247\u6817\u7C89", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u3054\u307E\u6CB9\uFF08\u4ED5\u4E0A\u3052\uFF09" : "\u6CB9", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 400, unit: "ml" },
+      { name: "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1, unit: "\u5C11\u3005" }
+    ]);
+    const t5Mains = [
+      { name: tofuName, baseAmount: 0.5, unit: "\u4E01 (\u7D04150g)", note: "\u6CE1\u7ACB\u3066\u5668\u3084\u30B9\u30D7\u30FC\u30F3\u3067\u306A\u3081\u3089\u304B\u306B\u6F70\u3059" },
+      { name: "\u30AD\u30E3\u30D9\u30C4", baseAmount: 120, unit: "g", note: "\u5343\u5207\u308A\u307E\u305F\u306F\u307F\u3058\u3093\u5207\u308A" },
+      { name: "\u5375", baseAmount: 1, unit: "\u500B" },
+      { name: "\u7247\u6817\u7C89\u307E\u305F\u306F\u5C0F\u9EA6\u7C89", baseAmount: 2, unit: "\u5927\u3055\u3058", note: "\u3064\u306A\u304E\u7528" }
+    ];
+    const t5Seasonings = buildSeasoningList([
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u9D8F\u30AC\u30E9\u30B9\u30FC\u30D7\u306E\u7D20", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9\uFF08\u307E\u305F\u306F\u4E2D\u6FC3\u30BD\u30FC\u30B9\uFF09" : hasPonzu ? "\u30DD\u30F3\u9162" : "\u91A4\u6CB9", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : "\u3054\u307E\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: "\u304B\u3064\u304A\u7BC0\u30FB\u9752\u306E\u308A", baseAmount: 1, unit: "\u9069\u91CF", preferred: true }
+    ]);
+    recipes = [
+      {
+        id: "rec_tofu_1",
+        title: `\u30B3\u30AF\u65E8\uFF01\u672C\u683C\u56DB\u5DDD\u98A8 ${tofuName}\u306E\u9EBB\u5A46\u8C46\u8150`,
+        subtitle: `${hasOyster ? "\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\u306E\u6DF1\u3044\u30B3\u30AF\uFF01" : ""}\u3054\u98EF\u304C\u9032\u3080\u738B\u9053\u4E2D\u83EF\u30E1\u30A4\u30F3\u304A\u304B\u305A`,
+        description: `\u6ED1\u3089\u304B\u306A${tofuName}\u306B\u8C5A\u8089\u306E\u65E8\u5473\u3068\u7279\u88FD\u5408\u308F\u305B\u30C0\u30EC\u304C\u3057\u3063\u304B\u308A\u7D61\u3080\u7D76\u54C1\u9EBB\u5A46\u8C46\u8150\u3002\u8F9B\u3055\u3068\u30B3\u30AF\u306E\u30D0\u30E9\u30F3\u30B9\u304C\u629C\u7FA4\u3067\u98DF\u5353\u306E\u4E3B\u5F79\u306B\u3074\u3063\u305F\u308A\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u4E2D\u83EF",
+        tags: ["\u672C\u683C\u4E2D\u83EF", "\u9AD8\u305F\u3093\u3071\u304F", "\u3054\u98EF\u304C\u9032\u3080", "\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9"],
+        baseServings: 2,
+        mainIngredients: t1Mains,
+        seasonings: t1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${tofuName}\u306F2cm\u89D2\u306B\u5207\u308A\u307E\u3059\u3002\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001\u307F\u3058\u3093\u5207\u308A\u306E\u9577\u30CD\u30AE\u3068\u8089\u3092\u4E2D\u706B\u3067\u8272\u304C\u5909\u308F\u308B\u307E\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 2, instruction: `\u8ABF\u5473\u6599\uFF08\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\u3001\u91A4\u6CB9\u3001\u8C46\u677F\u91A4\u307E\u305F\u306F\u5473\u564C\u3001\u9D8F\u30AC\u30E9\u3001\u6C34\uFF09\u3092\u52A0\u3048\u3001\u716E\u7ACB\u3063\u305F\u3089${tofuName}\u3092\u9759\u304B\u306B\u5165\u308C\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 3, instruction: `\u5F31\u706B\u30672\u301C3\u5206\u716E\u8FBC\u307F\u3001\u8C46\u8150\u306E\u82AF\u307E\u3067\u5473\u3092\u67D3\u307F\u8FBC\u307E\u305B\u307E\u3059\u3002`, timerMinutes: 3, tip: "\u8C46\u8150\u304C\u5D29\u308C\u306A\u3044\u3088\u3046\u3001\u6728\u3079\u3089\u3067\u512A\u3057\u304F\u5E95\u3092\u62BC\u3059\u3088\u3046\u306B\u52D5\u304B\u3057\u307E\u3059\u3002" },
+          { stepNumber: 4, instruction: `\u4E00\u5EA6\u706B\u3092\u6B62\u3081\u3001\u6C34\u6EB6\u304D\u7247\u6817\u7C89\u3092\u56DE\u3057\u5165\u308C\u3066\u7D20\u65E9\u304F\u6DF7\u305C\u307E\u3059\u3002\u518D\u5EA6\u5F37\u706B\u306B\u304B\u3051\u3066\u3068\u308D\u307F\u3092\u3064\u3051\u3001\u4ED5\u4E0A\u3052\u306B\u3054\u307E\u6CB9\u3092\u5782\u3089\u3057\u3066\u5B8C\u6210\u3067\u3059\u3002`, timerMinutes: 1 }
+        ],
+        nutritionPerServing: { calories: 230, protein: 17.5, fat: 12.8, carbohydrates: 9.6, saltEquivalent: 1.8, highlights: "\u5927\u8C46\u30A4\u30BD\u30D5\u30E9\u30DC\u30F3\u3068\u826F\u8CEA\u306A\u305F\u3093\u3071\u304F\u8CEA\u304C\u51DD\u7E2E\u3002\u4F4E\u7CD6\u8CEA\u3067\u30D8\u30EB\u30B7\u30FC\u306A\u304C\u3089\u6E80\u8DB3\u611F\u306E\u9AD8\u3044\u4E00\u54C1\u3067\u3059\u3002" },
+        chefTips: "\u8C46\u8150\u3092\u6CB8\u9A30\u3057\u305F\u304A\u6E6F\u30671\u5206\u30B5\u30C3\u3068\u4E0B\u8339\u3067\u3059\u308B\u304B\u3001\u30EC\u30F3\u30B8\u30671\u5206\u52A0\u71B1\u3057\u3066\u6C34\u6C17\u3092\u5207\u3063\u3066\u304A\u304F\u3068\u3001\u716E\u5D29\u308C\u305A\u5473\u304C\u3057\u3063\u304B\u308A\u7D61\u307F\u307E\u3059\uFF01"
+      },
+      {
+        id: "rec_tofu_2",
+        title: `\u5473\u304C\u3057\u307F\u3057\u307F\uFF01${tofuName}\u3068${otherMeat}\u306E\u7518\u8F9B\u3059\u304D\u713C\u304D\u98A8\u8089\u8C46\u8150`,
+        subtitle: "10\u5206\u3067\u5473\u304C\u3057\u3063\u304B\u308A\u67D3\u307F\u8FBC\u3080\uFF01\u30DB\u30C3\u3068\u3059\u308B\u65E5\u672C\u306E\u5BB6\u5EAD\u6599\u7406",
+        description: `\u3058\u3085\u308F\u3063\u3068\u716E\u6C41\u304C\u6EA2\u308C\u308B${tofuName}\u3068\u3001\u7518\u8F9B\u3044\u30BF\u30EC\u3092\u5438\u3063\u305F\u304A\u8089\u30FB\u91CE\u83DC\u304C\u305F\u307E\u3089\u306A\u3044\u8089\u8C46\u8150\u3002\u6E29\u6CC9\u5375\u3084\u3059\u304D\u713C\u304D\u98A8\u306E\u751F\u5375\u3092\u3064\u3051\u3066\u3082\u6700\u9AD8\u3067\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u3059\u304D\u713C\u304D\u98A8", "\u5BB6\u5EAD\u306E\u5473", "\u716E\u8FBC\u307F10\u5206", "\u6804\u990A\u6E80\u70B9"],
+        baseServings: 2,
+        mainIngredients: t2Mains,
+        seasonings: t2Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u934B\u307E\u305F\u306F\u6DF1\u3081\u306E\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u8ABF\u5473\u6599\uFF08\u91A4\u6CB9\u3001\u307F\u308A\u3093\u3001\u7802\u7CD6\u3001\u9152\u3001\u548C\u98A8\u3060\u3057\u3001\u6C34\uFF09\u3092\u5408\u308F\u305B\u3001\u4E2D\u706B\u3067\u3072\u3068\u716E\u7ACB\u3061\u3055\u305B\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u7389\u306D\u304E\uFF08\u307E\u305F\u306F\u9577\u30CD\u30AE\uFF09\u3068${tofuName}\u3092\u4E26\u3079\u5165\u308C\u3001\u843D\u3068\u3057\u30D6\u30BF\uFF08\u307E\u305F\u306F\u30A2\u30EB\u30DF\u30DB\u30A4\u30EB\uFF09\u3092\u3057\u3066\u4E2D\u5F31\u706B\u30675\u5206\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `\u7A7A\u3044\u305F\u30B9\u30DA\u30FC\u30B9\u306B\u304A\u8089\u3092\u5E83\u3052\u5165\u308C\u3001\u706B\u304C\u901A\u308B\u307E\u3067\u3055\u3089\u306B2\u301C3\u5206\u30B5\u30C3\u3068\u716E\u307E\u3059\u3002`, timerMinutes: 3, tip: "\u304A\u8089\u3092\u5F8C\u304B\u3089\u52A0\u3048\u308B\u3053\u3068\u3067\u3001\u304A\u8089\u304C\u786C\u304F\u306A\u3089\u305A\u67D4\u3089\u304B\u304F\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002" },
+          { stepNumber: 4, instruction: `\u706B\u3092\u6B62\u3081\u30662\u301C3\u5206\u7F6E\u304F\u3068\u3001\u4F59\u71B1\u3067\u8C46\u8150\u306E\u4E2D\u307E\u3067\u5473\u304C\u3050\u3093\u3050\u3093\u67D3\u307F\u8FBC\u307F\u307E\u3059\u3002\u5668\u306B\u76DB\u308A\u4ED8\u3051\u3066\u5B8C\u6210\u3067\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 265, protein: 19.2, fat: 13.5, carbohydrates: 14.8, saltEquivalent: 1.9, highlights: "\u4F4E\u30AB\u30ED\u30EA\u30FC\u3067\u826F\u8CEA\u306A\u305F\u3093\u3071\u304F\u8CEA\u304C\u305F\u3063\u3077\u308A\u3002\u91CE\u83DC\u306E\u98DF\u7269\u7E4A\u7DAD\u3068\u304A\u8089\u306E\u30D3\u30BF\u30DF\u30F3B\u7FA4\u3082\u540C\u6642\u306B\u6442\u53D6\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u706B\u3092\u6B62\u3081\u305F\u5F8C\u306E\u300C\u5C11\u3057\u51B7\u307E\u3059\u6642\u9593\u300D\u306B\u5473\u304C\u304E\u3085\u3063\u3068\u67D3\u307F\u8FBC\u307F\u307E\u3059\u3002\u98DF\u3079\u308B\u76F4\u524D\u306B\u518D\u5EA6\u6E29\u3081\u308B\u3068\u7D76\u54C1\uFF01"
+      },
+      {
+        id: "rec_tofu_3",
+        title: `\u5916\u30AB\u30EA\u4E2D\u3075\u308F\uFF01${tofuName}\u30B9\u30C6\u30FC\u30AD \u30AD\u30CE\u30B3\u3068\u7279\u88FD\u3042\u3093\u304B\u3051`,
+        subtitle: "\u7247\u6817\u7C89\u3092\u307E\u3076\u3057\u3066\u713C\u304F\u3060\u3051\uFF01\u304A\u5E97\u306E\u3088\u3046\u306A\u3054\u3061\u305D\u3046\u8C46\u8150\u6599\u7406",
+        description: `\u7247\u6817\u7C89\u3092\u307E\u3076\u3057\u3066\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u9999\u3070\u3057\u304F\u713C\u3044\u305F${tofuName}\u306B\u3001\u65E8\u5473\u305F\u3063\u3077\u308A\u306E\u30AD\u30CE\u30B3\u3042\u3093\u304B\u3051\u3092\u3068\u308D\u301C\u308A\u304B\u3051\u305F\u7D76\u54C1\u30E1\u30A4\u30F3\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u5916\u30AB\u30EA\u4E2D\u3075\u308F", "\u6642\u77ED12\u5206", "\u30D8\u30EB\u30B7\u30FC\u4E3B\u83DC", "\u65E8\u5473\u305F\u3063\u3077\u308A"],
+        baseServings: 2,
+        mainIngredients: t3Mains,
+        seasonings: t3Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${tofuName}\u3092\u30AD\u30C3\u30C1\u30F3\u30DA\u30FC\u30D1\u30FC\u3067\u5305\u3093\u3067\u8EFD\u304F\u6C34\u6C17\u3092\u62ED\u304D\u3001\u5168\u4F53\u306B\u8584\u304F\u7247\u6817\u7C89\u3092\u307E\u3076\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u591A\u3081\u306E\u6CB9\u3092\u4E2D\u706B\u3067\u71B1\u3057\u3001\u8C46\u8150\u3092\u4E26\u3079\u3066\u5168\u9762\u306B\u3053\u3093\u304C\u308A\u9999\u3070\u3057\u3044\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u713C\u304D\u3001\u76BF\u306B\u53D6\u308A\u51FA\u3057\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `\u540C\u3058\u30D5\u30E9\u30A4\u30D1\u30F3\u3067\u304D\u306E\u3053\u3092\u30B5\u30C3\u3068\u7092\u3081\u3001\u6C34\u3068\u5408\u308F\u305B\u8ABF\u5473\u6599\uFF08\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\u3001\u91A4\u6CB9\u3001\u307F\u308A\u3093\uFF09\u3092\u52A0\u3048\u3066\u716E\u7ACB\u3066\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 4, instruction: `\u6C34\u6EB6\u304D\u7247\u6817\u7C89\u3067\u3068\u308D\u307F\u3092\u3064\u3051\u3001\u713C\u304D\u305F\u3066\u306E\u8C46\u8150\u30B9\u30C6\u30FC\u30AD\u306E\u4E0A\u306B\u71B1\u3005\u306E\u3042\u3093\u3092\u305F\u3063\u3077\u308A\u304B\u3051\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 195, protein: 12.6, fat: 9.8, carbohydrates: 13.2, saltEquivalent: 1.5, highlights: "\u304D\u306E\u3053\u306E\u98DF\u7269\u7E4A\u7DAD\u3068\u5927\u8C46\u305F\u3093\u3071\u304F\u8CEA\u306E\u76F8\u4E57\u52B9\u679C\u3067\u3001\u8178\u5185\u74B0\u5883\u3092\u6574\u3048\u306A\u304C\u3089\u6E80\u8DB3\u611F\u3092\u7DAD\u6301\u3067\u304D\u307E\u3059\u3002" },
+        chefTips: "\u7247\u6817\u7C89\u3092\u713C\u304F\u76F4\u524D\u306B\u624B\u65E9\u304F\u307E\u3076\u3059\u3053\u3068\u3067\u3001\u6C34\u5206\u3092\u5438\u308F\u305A\u30AB\u30EA\u30C3\u3068\u3057\u305F\u8863\u306B\u713C\u304D\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_tofu_4",
+        title: `\u307B\u3063\u3053\u308A\u6E29\u6D3B\uFF01${tofuName}\u3068\u30B7\u30E3\u30AD\u30B7\u30E3\u30AD\u91CE\u83DC\u306E\u4E2D\u83EF\u3068\u308D\u307F\u5375\u30B9\u30FC\u30D7`,
+        subtitle: "\u5305\u4E01\u3044\u3089\u305A\u30675\u5206\uFF01\u80C3\u8178\u306B\u512A\u3057\u304F\u8EAB\u4F53\u306E\u82AF\u304B\u3089\u6E29\u307E\u308B\u6E80\u8DB3\u30B9\u30FC\u30D7",
+        description: `\u3075\u308F\u3075\u308F\u306E\u6EB6\u304D\u5375\u3068\u6ED1\u3089\u304B\u306A${tofuName}\u304C\u305F\u3063\u3077\u308A\u5165\u3063\u305F\u5177\u3060\u304F\u3055\u3093\u30B9\u30FC\u30D7\u3002\u512A\u3057\u3044\u4E2D\u83EF\u51FA\u6C41\u3068\u3054\u307E\u6CB9\u306E\u9999\u308A\u304C\u98DF\u6B32\u3092\u305D\u305D\u308A\u307E\u3059\u3002`,
+        cookingTimeMinutes: 8,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u4E2D\u83EF",
+        tags: ["\u6E29\u6D3B", "5\u5206\u5373\u5E2D", "\u80C3\u8178\u306B\u512A\u3057\u3044", "\u98DF\u7269\u7E4A\u7DAD"],
+        baseServings: 2,
+        mainIngredients: t4Mains,
+        seasonings: t4Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u5C0F\u934B\u306B\u6C34\u3068\u9D8F\u30AC\u30E9\u30B9\u30FC\u30D7\u306E\u7D20\u3001\u91A4\u6CB9\u3001\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9\u3092\u5165\u308C\u3001\u3056\u304F\u5207\u308A\u30AD\u30E3\u30D9\u30C4\u3092\u52A0\u3048\u3066\u4E2D\u706B\u3067\u716E\u7ACB\u3066\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 2, instruction: `${tofuName}\u3092\u624B\u3067\u4E00\u53E3\u5927\u306B\u3061\u304E\u308A\u306A\u304C\u3089\uFF08\u307E\u305F\u306F\u30B9\u30D7\u30FC\u30F3\u3067\u3059\u304F\u3044\u306A\u304C\u3089\uFF09\u52A0\u3048\u3001\u3072\u3068\u716E\u7ACB\u3061\u3055\u305B\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 3, instruction: `\u6C34\u6EB6\u304D\u7247\u6817\u7C89\u3092\u52A0\u3048\u3066\u3068\u308D\u307F\u3092\u3064\u3051\u305F\u5F8C\u3001\u30B9\u30FC\u30D7\u3092\u304B\u304D\u6DF7\u305C\u306A\u304C\u3089\u6EB6\u304D\u5375\u3092\u56DE\u3057\u5165\u308C\u3001\u3075\u308F\u3063\u3068\u6D6E\u304D\u4E0A\u304C\u3063\u305F\u3089\u706B\u3092\u6B62\u3081\u307E\u3059\u3002` },
+          { stepNumber: 4, instruction: `\u4ED5\u4E0A\u3052\u306B\u3054\u307E\u6CB9\u3068\u5869\u3053\u3057\u3087\u3046\u3092\u3075\u3063\u3066\u71B1\u3005\u3092\u3044\u305F\u3060\u304D\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { calories: 135, protein: 9.4, fat: 6.8, carbohydrates: 7.2, saltEquivalent: 1.3, highlights: "\u6C34\u6EB6\u6027\u30D3\u30BF\u30DF\u30F3\u3068\u5927\u8C46\u30EC\u30B7\u30C1\u30F3\u3092\u30B9\u30FC\u30D7\u3054\u3068\u4E38\u3054\u3068\u6442\u53D6\u3067\u304D\u3001\u75B2\u308C\u305F\u65E5\u306E\u591C\u98DF\u3084\u671D\u98DF\u306B\u3082\u6700\u9069\u3067\u3059\u3002" },
+        chefTips: "\u5375\u3092\u5165\u308C\u308B\u524D\u306B\u30B9\u30FC\u30D7\u306B\u8EFD\u304F\u3068\u308D\u307F\u3092\u3064\u3051\u3066\u304A\u304F\u3053\u3068\u3067\u3001\u5375\u304C\u6C88\u307E\u305A\u3075\u308F\u3075\u308F\u306E\u82B1\u304C\u54B2\u3044\u305F\u3088\u3046\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_tofu_5",
+        title: `\u7C89\u5C11\u306A\u3081\uFF01${tofuName}\u306E\u3075\u3093\u308F\u308A\u30D8\u30EB\u30B7\u30FC\u304A\u597D\u307F\u713C\u304D\u98A8`,
+        subtitle: "\u5C0F\u9EA6\u7C89\u308F\u305A\u304B\u3067\u9A5A\u304D\u306E\u3075\u308F\u3075\u308F\u98DF\u611F\uFF01\u7F6A\u60AA\u611F\u30BC\u30ED\u306E\u7CD6\u8CEA\u30AA\u30D5\u3054\u306F\u3093",
+        description: `\u6F70\u3057\u305F${tofuName}\u306B\u5375\u3068\u5343\u5207\u308A\u30AD\u30E3\u30D9\u30C4\u3092\u6DF7\u305C\u3066\u3053\u3093\u304C\u308A\u713C\u304F\u3060\u3051\u3002\u5C71\u828B\u3092\u5165\u308C\u305F\u304B\u306E\u3088\u3046\u306A\u3075\u308F\u3075\u308F\u98DF\u611F\u3067\u5927\u6E80\u8DB3\u306E\u304A\u3044\u3057\u3055\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u7CD6\u8CEA\u30AA\u30D5", "\u7F6A\u60AA\u611F\u30BC\u30ED", "\u3075\u308F\u3075\u308F\u98DF\u611F", "\u30D5\u30E9\u30A4\u30D1\u30F31\u3064"],
+        baseServings: 2,
+        mainIngredients: t5Mains,
+        seasonings: t5Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u30DC\u30A6\u30EB\u306B${tofuName}\u3092\u5165\u308C\u3001\u6CE1\u7ACB\u3066\u5668\u3067\u306A\u3081\u3089\u304B\u306B\u306A\u308B\u307E\u3067\u6F70\u3057\u307E\u3059\u3002\u5375\u3001\u3060\u3057\u306E\u7D20\u3001\u7247\u6817\u7C89\uFF08\u307E\u305F\u306F\u5C0F\u9EA6\u7C89\uFF09\u3092\u52A0\u3048\u3066\u3088\u304F\u6DF7\u305C\u5408\u308F\u305B\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30AD\u30E3\u30D9\u30C4\u3092\u52A0\u3048\u3066\u30B9\u30D7\u30FC\u30F3\u3067\u3055\u3063\u304F\u308A\u3068\u6DF7\u305C\u5408\u308F\u305B\u307E\u3059\u3002` },
+          { stepNumber: 3, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001\u751F\u5730\u3092\u6D41\u3057\u5165\u308C\u3066\u4E38\u304F\u6574\u3048\u3001\u30D5\u30BF\u3092\u3057\u3066\u5F31\u4E2D\u706B\u30673\u301C4\u5206\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 4 },
+          { stepNumber: 4, instruction: `\u3072\u3063\u304F\u308A\u8FD4\u3057\u3066\u3055\u3089\u306B2\u301C3\u5206\u713C\u304D\u3001\u304A\u76BF\u306B\u76DB\u3063\u3066\u30BD\u30FC\u30B9\u3001\u30DE\u30E8\u30CD\u30FC\u30BA\u3001\u304B\u3064\u304A\u7BC0\u3092\u30C8\u30C3\u30D4\u30F3\u30B0\u3057\u307E\u3059\u3002`, timerMinutes: 3 }
+        ],
+        nutritionPerServing: { calories: 185, protein: 11.8, fat: 9.5, carbohydrates: 12, saltEquivalent: 1.4, highlights: "\u4E3B\u539F\u6599\u304C\u5927\u8C46\u3068\u91CE\u83DC\u306A\u306E\u3067\u30AB\u30ED\u30EA\u30FC\u30FB\u7CD6\u8CEA\u3092\u5927\u5E45\u30AB\u30C3\u30C8\uFF01\u9045\u3044\u6642\u9593\u306E\u591C\u3054\u98EF\u306B\u3082\u5B89\u5FC3\u3067\u3059\u3002" },
+        chefTips: "\u3072\u3063\u304F\u308A\u8FD4\u3059\u6642\u306F\u304A\u76BF\u3084\u30D5\u30BF\u3092\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u304B\u3076\u305B\u3066\u30B9\u30E9\u30A4\u30C9\u3055\u305B\u308B\u3068\u3001\u5D29\u308C\u305A\u7DBA\u9E97\u306B\u88CF\u8FD4\u305B\u307E\u3059\u3002"
+      }
+    ];
+  } else {
+    const p1Name = heroIngredient;
+    const p2Name = secondaryIngredient;
+    const extraNames = otherIngredients.slice(0, 2);
+    const formatMains = (amounts) => {
+      const list = [
+        { name: p1Name, baseAmount: amounts[0] || 180, unit: "g", note: "\u4E00\u53E3\u5927" },
+        { name: p2Name, baseAmount: amounts[1] || 150, unit: "g", note: "\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308B" }
+      ];
+      extraNames.forEach((name, idx) => {
+        list.push({ name, baseAmount: amounts[2 + idx] || 80, unit: "g", note: "\u9069\u5B9C\u30AB\u30C3\u30C8" });
+      });
+      return list;
+    };
+    const r1Mains = formatMains([200, 180, 80, 80]);
+    const r1Seasonings = buildSeasoningList([
+      { name: hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : hasSoySauce ? "\u91A4\u6CB9" : hasMiso ? "\u5473\u564C" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA" : hasMirin ? "\u307F\u308A\u3093" : "\u9152", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9\uFF08\u307E\u305F\u306F\u3054\u307E\u6CB9\uFF09" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasGarlicGinger ? "\u306B\u3093\u306B\u304F/\u751F\u59DC" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const r2Mains = formatMains([160, 200, 60, 60]);
+    const r2Seasonings = buildSeasoningList([
+      { name: hasPonzu ? "\u30DD\u30F3\u9162" : hasSoySauce ? "\u91A4\u6CB9" : hasSauce ? "\u7279\u88FD\u30BD\u30FC\u30B9" : "\u5869", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasSake ? "\u6599\u7406\u9152" : "\u6C34", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const r3Mains = formatMains([190, 160, 70, 70]);
+    const r3Seasonings = buildSeasoningList([
+      { name: hasMiso ? "\u5473\u564C" : hasOyster ? "\u30AA\u30A4\u30B9\u30BF\u30FC\u30BD\u30FC\u30B9" : hasSauce ? "\u304A\u597D\u307F\u713C\u304D\u30BD\u30FC\u30B9" : "\u91A4\u6CB9", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasSugar ? "\u7802\u7CD6" : hasMirin ? "\u307F\u308A\u3093" : "\u30DE\u30E8\u30CD\u30FC\u30BA", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: hasOil ? "\u3054\u307E\u6CB9\uFF08\u307E\u305F\u306F\u30B5\u30E9\u30C0\u6CB9\uFF09" : "\u30B5\u30E9\u30C0\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasDoubanjiang ? "\u8C46\u677F\u91A4" : "\u9ED2\u3053\u3057\u3087\u3046", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const r4Mains = formatMains([150, 150, 60, 60]);
+    const r4Seasonings = buildSeasoningList([
+      { name: hasMiso ? "\u5473\u564C" : hasMentsuyu ? "\u3081\u3093\u3064\u3086" : hasSoySauce ? "\u91A4\u6CB9" : "\u548C\u98A8\u9846\u7C92\u3060\u3057", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasDashi ? "\u548C\u98A8\u9846\u7C92\u3060\u3057" : "\u6C34", baseAmount: 1, unit: "\u5C0F\u3055\u3058" },
+      { name: "\u6C34", baseAmount: 450, unit: "ml" },
+      { name: hasGarlicGinger ? "\u751F\u59DC" : "\u3054\u307E\u6CB9", baseAmount: 0.5, unit: "\u5C0F\u3055\u3058" }
+    ]);
+    const r5Mains = [
+      ...formatMains([180, 140, 60, 60]),
+      { name: "\u6E29\u304B\u3044\u3054\u98EF", baseAmount: 360, unit: "g (2\u676F\u5206)" },
+      { name: "\u5375\uFF08\u3042\u308C\u3070\uFF09", baseAmount: 2, unit: "\u500B" }
+    ];
+    const r5Seasonings = buildSeasoningList([
+      { name: hasSoySauce ? "\u91A4\u6CB9" : hasSauce ? "\u30BD\u30FC\u30B9" : hasMentsuyu ? "\u3081\u3093\u3064\u3086" : "\u30DE\u30E8\u30CD\u30FC\u30BA", baseAmount: 2, unit: "\u5927\u3055\u3058" },
+      { name: hasMirin ? "\u307F\u308A\u3093" : hasSugar ? "\u7802\u7CD6" : "\u9152", baseAmount: 1.5, unit: "\u5927\u3055\u3058" },
+      { name: hasOil ? "\u30B5\u30E9\u30C0\u6CB9" : "\u6CB9", baseAmount: 1, unit: "\u5927\u3055\u3058" },
+      { name: hasMayo ? "\u30DE\u30E8\u30CD\u30FC\u30BA\uFF08\u30C8\u30C3\u30D4\u30F3\u30B0\uFF09" : "\u5869\u30FB\u3053\u3057\u3087\u3046", baseAmount: 1, unit: "\u5927\u3055\u3058" }
+    ]);
+    recipes = [
+      {
+        id: "rec_dyn_1",
+        title: `${p1Name}\u3068${p2Name}\u306E\u9999\u3070\u3057\u30B9\u30D4\u30FC\u30C9\u7092\u3081`,
+        subtitle: `10\u5206\u3067\u5B8C\u6210\uFF01${allInputs.slice(0, 3).join("\u3068")}\u306E\u65E8\u5473\u304C\u5E83\u304C\u308B\u738B\u9053\u30E1\u30A4\u30F3`,
+        description: `\u30B8\u30E5\u30FC\u30B7\u30FC\u306A${p1Name}\u306E\u30B3\u30AF\u3068${p2Name}\u306E\u7518\u307F\u304C\u30DE\u30C3\u30C1\u3059\u308B\u624B\u8EFD\u306A\u7092\u3081\u7269\u3067\u3059\u3002\u624B\u5143\u306B\u3042\u308B\u8ABF\u5473\u6599\u3067\u30D1\u30D1\u30C3\u3068\u77ED\u6642\u9593\u3067\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30D5\u30E9\u30A4\u30D1\u30F31\u3064", "\u6642\u77ED10\u5206", "\u3054\u98EF\u304C\u9032\u3080", "\u4EBA\u6C17\u5B9A\u756A"],
+        baseServings: 2,
+        mainIngredients: r1Mains,
+        seasonings: r1Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `${p1Name}\u3068${p2Name}\u3092\u98DF\u3079\u3084\u3059\u3044\u4E00\u53E3\u5927\u306B\u30AB\u30C3\u30C8\u3057\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u4E2D\u706B\u3067\u71B1\u3057\u3001${p1Name}\u3092\u7092\u3081\u3066\u8272\u304C\u5909\u308F\u308B\u307E\u3067\u706B\u3092\u901A\u3057\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `${p2Name}\u3092\u52A0\u3048\u3066\u5F37\u706B\u3067\u30B5\u30C3\u3068\u7092\u3081\u5408\u308F\u305B\u3001\u5408\u308F\u305B\u8ABF\u5473\u6599\u3092\u56DE\u3057\u5165\u308C\u3066\u624B\u65E9\u304F\u7D61\u3081\u307E\u3059\u3002`, timerMinutes: 2 }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u7092\u3081\u7269", r1Mains, r1Seasonings), highlights: `${p1Name}\u306E\u826F\u8CEA\u306A\u305F\u3093\u3071\u304F\u8CEA\u3068${p2Name}\u306E\u30D3\u30BF\u30DF\u30F3\u304C\u52B9\u7387\u3088\u304F\u6442\u53D6\u3067\u304D\u307E\u3059\u3002` },
+        chefTips: "\u91CE\u83DC\u306F\u5F37\u706B\u3067\u77ED\u6642\u9593\u7092\u3081\u308B\u3053\u3068\u3067\u6C34\u5206\u304C\u51FA\u305A\u3001\u30B7\u30E3\u30AD\u30B7\u30E3\u30AD\u306E\u98DF\u611F\u306B\u4ED5\u4E0A\u304C\u308A\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_dyn_2",
+        title: `${p1Name}\u3068${p2Name}\u306E\u65E8\u5473\u91CD\u306D\u84B8\u3057 \u30D8\u30EB\u30B7\u30FC\u4ED5\u7ACB\u3066`,
+        subtitle: "\u6CB9\u63A7\u3048\u3081\u3067\u7D20\u6750\u306E\u65E8\u5473\u51DD\u7E2E\uFF01\u934B\u3084\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u91CD\u306D\u3066\u84B8\u3059\u3060\u3051",
+        description: `\u7D20\u6750\u81EA\u8EAB\u306E\u6C34\u5206\u3068\u304A\u51FA\u6C41\u3067\u3058\u3063\u304F\u308A\u84B8\u3057\u4E0A\u3052\u308B\u305F\u3081\u3001\u4F59\u5206\u306A\u6CB9\u3092\u4F7F\u308F\u305A\u3068\u3063\u3066\u3082\u30D8\u30EB\u30B7\u30FC\u3002${p1Name}\u306E\u65E8\u5473\u304C\u91CE\u83DC\u5168\u4F53\u306B\u67D3\u307F\u6E21\u308A\u307E\u3059\u3002`,
+        cookingTimeMinutes: 14,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30D8\u30EB\u30B7\u30FC", "\u307B\u3063\u305F\u3089\u304B\u3057", "\u6CB9\u63A7\u3048\u3081", "\u4F4E\u30AB\u30ED\u30EA\u30FC"],
+        baseServings: 2,
+        mainIngredients: r2Mains,
+        seasonings: r2Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u307E\u305F\u306F\u934B\u306E\u5E95\u306B${p2Name}\u3092\u6577\u304D\u8A70\u3081\u3001\u305D\u306E\u4E0A\u306B${p1Name}\u3092\u5E83\u3052\u3066\u4E26\u3079\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u8ABF\u5473\u6599\u3092\u5168\u4F53\u306B\u56DE\u3057\u304B\u3051\u3001\u30D5\u30BF\u3092\u3057\u3066\u4E2D\u5F31\u706B\u3067\u84B8\u3057\u713C\u304D\u306B\u3057\u307E\u3059\u3002`, timerMinutes: 7 },
+          { stepNumber: 3, instruction: `\u706B\u304C\u901A\u3063\u305F\u3089\u304A\u76BF\u306B\u76DB\u308A\u3001\u71B1\u3005\u3092\u53EC\u3057\u4E0A\u304C\u3063\u3066\u304F\u3060\u3055\u3044\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u84B8\u3057\u7269", r2Mains, r2Seasonings), highlights: "\u84B8\u3059\u8ABF\u7406\u6CD5\u306B\u3088\u308A\u6C34\u6EB6\u6027\u30D3\u30BF\u30DF\u30F3\u3084\u6804\u990A\u7D20\u304C\u9003\u3052\u306B\u304F\u304F\u3001\u8EAB\u4F53\u306B\u512A\u3057\u3044\u732E\u7ACB\u3067\u3059\u3002" },
+        chefTips: "\u30D5\u30BF\u3092\u3074\u3063\u305F\u308A\u9589\u3081\u3066\u5F31\u706B\u3067\u84B8\u6C17\u3092\u9589\u3058\u8FBC\u3081\u308B\u306E\u304C\u30B8\u30E5\u30FC\u30B7\u30FC\u306B\u4ED5\u4E0A\u3052\u308B\u30DD\u30A4\u30F3\u30C8\u3067\u3059\u3002"
+      },
+      {
+        id: "rec_dyn_3",
+        title: `\u7279\u88FD${p1Name}\u3068${p2Name}\u306E\u3053\u3063\u3066\u308A\u30B3\u30AF\u65E8\u30BD\u30C6\u30FC`,
+        subtitle: "\u3054\u98EF\u304C\u4F55\u676F\u3067\u3082\u9032\u3080\uFF01\u9999\u3070\u3057\u3044\u30BF\u30EC\u304C\u3057\u3063\u304B\u308A\u7D61\u3080\u6E80\u8DB3\u304A\u304B\u305A",
+        description: `\u8ABF\u5473\u6599\u306E\u9999\u3070\u3057\u3055\u3068${p1Name}\u306E\u30B8\u30E5\u30FC\u30B7\u30FC\u3055\u304C\u98DF\u6B32\u3092\u523A\u6FC0\u3059\u308B\u30B9\u30BF\u30DF\u30CA\u304A\u304B\u305A\u3002\u304A\u5F01\u5F53\u306E\u304A\u304B\u305A\u306B\u3082\u3074\u3063\u305F\u308A\u3067\u3059\u3002`,
+        cookingTimeMinutes: 12,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u30B3\u30AF\u65E8", "\u3054\u98EF\u304C\u9032\u3080", "\u304A\u5F01\u5F53\u306B\u3082", "\u304C\u3063\u3064\u308A"],
+        baseServings: 2,
+        mainIngredients: r3Mains,
+        seasonings: r3Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u5177\u6750\u3092\u305D\u308C\u305E\u308C\u98DF\u3079\u3084\u3059\u3044\u5927\u304D\u3055\u306B\u5207\u308A\u3001\u5408\u308F\u305B\u8ABF\u5473\u6599\u3092\u5C0F\u9262\u3067\u6DF7\u305C\u3066\u304A\u304D\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u306B\u6CB9\u3092\u71B1\u3057\u3001${p1Name}\u3092\u3053\u3093\u304C\u308A\u9999\u3070\u3057\u304F\u713C\u304D\u8272\u304C\u3064\u304F\u307E\u3067\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 3, instruction: `${p2Name}\u3092\u52A0\u3048\u3066\u7092\u3081\u5408\u308F\u305B\u3001\u8ABF\u5473\u6599\u3092\u4E00\u6C17\u306B\u52A0\u3048\u3066\u716E\u7D61\u3081\u307E\u3059\u3002`, timerMinutes: 2 }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u30B3\u30AF\u65E8\u7092\u3081", r3Mains, r3Seasonings), highlights: "\u305F\u3093\u3071\u304F\u8CEA\u3068\u91CE\u83DC\u306E\u98DF\u7269\u7E4A\u7DAD\u304C\u8C4A\u5BCC\u3067\u3001\u65E5\u3005\u306E\u4F53\u529B\u3065\u304F\u308A\u306B\u6700\u9069\u306A\u30D0\u30E9\u30F3\u30B9\u3067\u3059\u3002" },
+        chefTips: "\u30BF\u30EC\u3092\u52A0\u3048\u308B\u524D\u306B\u4F59\u5206\u306A\u8102\u3092\u30AD\u30C3\u30C1\u30F3\u30DA\u30FC\u30D1\u30FC\u3067\u8EFD\u304F\u62ED\u304D\u53D6\u308B\u3068\u3001\u5473\u304C\u30B9\u30C3\u30AD\u30EA\u7D61\u307F\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_dyn_4",
+        title: `\u5177\u3060\u304F\u3055\u3093${p1Name}\u3068${p2Name}\u306E\u307B\u3063\u3053\u308A\u98DF\u3079\u308B\u3054\u3061\u305D\u3046\u30B9\u30FC\u30D7`,
+        subtitle: `\u7D20\u6750\u306E\u51FA\u6C41\u304C\u6EB6\u3051\u51FA\u3059\uFF01\u8EAB\u4F53\u306E\u82AF\u304B\u3089\u6E29\u307E\u308B\u6E80\u8DB3\u304A\u304B\u305A\u6C41`,
+        description: `\u305F\u3063\u3077\u308A\u306E\u5177\u6750\u3092\u30B3\u30C8\u30B3\u30C8\u716E\u8FBC\u3093\u3060\u6804\u990A\u6E80\u70B9\u306E\u98DF\u3079\u308B\u30B9\u30FC\u30D7\u3002\u3053\u308C1\u676F\u3067\u91CE\u83DC\u3068\u304A\u8089\u306E\u6804\u990A\u3092\u3057\u3063\u304B\u308A\u30C1\u30E3\u30FC\u30B8\u3067\u304D\u307E\u3059\u3002`,
+        cookingTimeMinutes: 15,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u98DF\u3079\u308B\u30B9\u30FC\u30D7", "\u6E29\u6D3B\u30FB\u8EAB\u4F53\u30DD\u30AB\u30DD\u30AB", "\u6804\u990A\u6E80\u70B9", "\u4F5C\u308A\u7F6E\u304D"],
+        baseServings: 2,
+        mainIngredients: r4Mains,
+        seasonings: r4Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u934B\u306B\u5C11\u91CF\u306E\u6CB9\u3092\u71B1\u3057\u3001${p1Name}\u3068${p2Name}\u3092\u4E2D\u706B\u3067\u8EFD\u304F\u7092\u3081\u307E\u3059\u3002` },
+          { stepNumber: 2, instruction: `\u6C34\u3092\u52A0\u3048\u3066\u716E\u7ACB\u305F\u305B\u3001\u30A2\u30AF\u3092\u53D6\u308A\u9664\u3044\u3066\u5F31\u706B\u3067\u716E\u8FBC\u307F\u307E\u3059\u3002`, timerMinutes: 5 },
+          { stepNumber: 3, instruction: `\u8ABF\u5473\u6599\u3092\u6EB6\u304D\u5165\u308C\u3001\u3072\u3068\u716E\u7ACB\u3061\u3055\u305B\u3066\u706B\u3092\u6B62\u3081\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u30B9\u30FC\u30D7", r4Mains, r4Seasonings), highlights: "\u30B9\u30FC\u30D7\u306B\u6EB6\u3051\u51FA\u3057\u305F\u30D3\u30BF\u30DF\u30F3\u3084\u30DF\u30CD\u30E9\u30EB\u3082\u4F59\u3059\u3053\u3068\u306A\u304F\u6442\u53D6\u3067\u304D\u308B\u6E29\u6D3B\u30E1\u30CB\u30E5\u30FC\u3067\u3059\u3002" },
+        chefTips: "\u5177\u6750\u3092\u716E\u308B\u524D\u306B\u6CB9\u3067\u30B5\u30C3\u3068\u7092\u3081\u3066\u304A\u304F\u3053\u3068\u3067\u3001\u30B9\u30FC\u30D7\u306B\u30B3\u30AF\u3068\u307E\u308D\u3084\u304B\u3055\u304C\u51FA\u307E\u3059\u3002"
+      },
+      {
+        id: "rec_dyn_5",
+        title: `\u7D76\u54C1${p1Name}\u3068${p2Name}\u306E\u7279\u88FD\u30B9\u30BF\u30DF\u30CA\u4E3C`,
+        subtitle: "10\u5206\u3067\u30B5\u30C3\u3068\u4F5C\u308C\u308B\uFF01\u30BF\u30EC\u304C\u3054\u98EF\u306B\u67D3\u307F\u8FBC\u3080\u3054\u3061\u305D\u3046\u30EF\u30F3\u30D7\u30EC\u30FC\u30C8",
+        description: `\u9999\u3070\u3057\u304F\u7092\u3081\u716E\u306B\u3057\u305F\u5177\u6750\u3092\u3064\u3086\u3054\u3068\u71B1\u3005\u306E\u3054\u98EF\u306E\u4E0A\u306B\u4E57\u305B\u305F\u30DC\u30EA\u30E5\u30FC\u30E0\u6E80\u70B9\u4E3C\u3002\u30E9\u30F3\u30C1\u3084\u5FD9\u3057\u3044\u65E5\u306E\u5915\u98DF\u306B\u6700\u9069\u3067\u3059\u3002`,
+        cookingTimeMinutes: 10,
+        difficulty: "\u7C21\u5358",
+        cuisineType: "\u548C\u98A8",
+        tags: ["\u4E3C\u3082\u306E", "10\u5206\u98EF", "\u304C\u3063\u3064\u308A", "\u5927\u6E80\u8DB3"],
+        baseServings: 2,
+        mainIngredients: r5Mains,
+        seasonings: r5Seasonings,
+        steps: [
+          { stepNumber: 1, instruction: `\u30D5\u30E9\u30A4\u30D1\u30F3\u3067${p1Name}\u3068${p2Name}\u3092\u9999\u3070\u3057\u304F\u7092\u3081\u307E\u3059\u3002`, timerMinutes: 3 },
+          { stepNumber: 2, instruction: `\u7279\u88FD\u30BF\u30EC\u3092\u52A0\u3048\u3066\u5F37\u706B\u3067\u716E\u7D61\u3081\u307E\u3059\u3002`, timerMinutes: 2 },
+          { stepNumber: 3, instruction: `\u3069\u3093\u3076\u308A\u306B\u6E29\u304B\u3044\u3054\u98EF\u3092\u3088\u305D\u3044\u3001\u5177\u6750\u3092\u3064\u3086\u3054\u3068\u306E\u305B\u3001\u304A\u597D\u307F\u3067\u5375\u3084\u30DE\u30E8\u30CD\u30FC\u30BA\u3092\u30C8\u30C3\u30D4\u30F3\u30B0\u3057\u307E\u3059\u3002` }
+        ],
+        nutritionPerServing: { ...estimateNutrition("\u4E3C", r5Mains, r5Seasonings), highlights: "\u30A8\u30CD\u30EB\u30AE\u30FC\u4EE3\u8B1D\u3092\u52A9\u3051\u308B\u70AD\u6C34\u5316\u7269\u3068\u305F\u3093\u3071\u304F\u8CEA\u304C\u540C\u6642\u306B\u88DC\u7D66\u3067\u304D\u3001\u5143\u6C17\u304C\u6E67\u3044\u3066\u304D\u307E\u3059\u3002" },
+        chefTips: "\u3054\u98EF\u306E\u4E0A\u306B\u4E57\u305B\u308B\u76F4\u524D\u306B\u5F37\u706B\u3067\u30BF\u30EC\u3092\u716E\u8A70\u3081\u3066\u7167\u308A\u3092\u51FA\u3059\u3068\u3001\u307E\u308B\u3067\u304A\u5E97\u306E\u3088\u3046\u306A\u4ED5\u4E0A\u304C\u308A\u306B\uFF01"
+      }
+    ];
+  }
+  return {
+    detectedIngredients,
+    recipes,
+    analysisComment,
+    ad_insertion_index: 2
+  };
+}
+
+// server.ts
+import_dotenv.default.config();
+var app = (0, import_express.default)();
+var PORT = 3e3;
+app.use(import_express.default.json({ limit: "25mb" }));
+app.use(import_express.default.urlencoded({ extended: true, limit: "25mb" }));
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("GEMINI_API_KEY is not set. Using fallback recipe generator.");
+    return null;
+  }
+  return new import_genai.GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build"
+      }
+    }
+  });
+}
+var RECIPE_RESPONSE_SCHEMA = {
+  type: import_genai.Type.OBJECT,
+  properties: {
+    ad_insertion_index: {
+      type: import_genai.Type.INTEGER,
+      description: "\u30A2\u30D7\u30EA\u304C\u30EC\u30B7\u30D4\u30EA\u30B9\u30C8\u5185\u306B\u30CD\u30A4\u30C6\u30A3\u30D6\u5E83\u544A\u3092\u633F\u5165\u3059\u308B\u3079\u304D0\u304B\u3089\u59CB\u307E\u308B\u30A4\u30F3\u30C7\u30C3\u30AF\u30B9\u3002\u5E38\u306B\u300C2\u300D\uFF083\u756A\u76EE\u306E\u30EC\u30B7\u30D4\u306E\u5F8C\uFF09\u3092\u6307\u5B9A\u3057\u307E\u3059\u3002"
+    },
+    detectedIngredients: {
+      type: import_genai.Type.ARRAY,
+      items: {
+        type: import_genai.Type.OBJECT,
+        properties: {
+          name: { type: import_genai.Type.STRING, description: "\u98DF\u6750\u306E\u540D\u524D (\u4F8B: \u8C5A\u30D0\u30E9\u8089, \u30AD\u30E3\u30D9\u30C4, \u30C8\u30DE\u30C8)" },
+          category: {
+            type: import_genai.Type.STRING,
+            description: "\u98DF\u6750\u306E\u30AB\u30C6\u30B4\u30EA: 'meat', 'vegetable', 'fish', 'dairy_egg', 'grain', 'seasoning', 'other'"
+          },
+          confidence: { type: import_genai.Type.STRING, description: "'high', 'medium', 'low'" }
+        },
+        required: ["name", "category"]
+      },
+      description: "\u5199\u771F\u304B\u3089\u8A8D\u8B58\u3055\u308C\u305F\u98DF\u6750\u30EA\u30B9\u30C8"
+    },
+    analysisComment: {
+      type: import_genai.Type.STRING,
+      description: "\u8A8D\u8B58\u3055\u308C\u305F\u98DF\u6750\u306E\u7279\u5FB4\u3084\u76F8\u6027\u306B\u95A2\u3059\u308B\u6E29\u304B\u3044\u30B3\u30E1\u30F3\u30C8\u30FB\u30A2\u30C9\u30D0\u30A4\u30B9"
+    },
+    recipes: {
+      type: import_genai.Type.ARRAY,
+      items: {
+        type: import_genai.Type.OBJECT,
+        properties: {
+          id: { type: import_genai.Type.STRING, description: "\u30E6\u30CB\u30FC\u30AF\u306AID (\u4F8B: rec_1)" },
+          title: { type: import_genai.Type.STRING, description: "\u9B45\u529B\u7684\u306A\u6599\u7406\u540D" },
+          subtitle: { type: import_genai.Type.STRING, description: "\u6599\u7406\u306E\u7279\u5FB4\u3084\u9B45\u529B\u3092\u8868\u3059\u30B5\u30D6\u30BF\u30A4\u30C8\u30EB" },
+          description: { type: import_genai.Type.STRING, description: "\u6599\u7406\u306E\u7C21\u5358\u306A\u8AAC\u660E" },
+          cookingTimeMinutes: { type: import_genai.Type.INTEGER, description: "\u8ABF\u7406\u6642\u9593\u306E\u76EE\u5B89 (\u5206)" },
+          difficulty: { type: import_genai.Type.STRING, description: "'\u7C21\u5358', '\u666E\u901A', '\u5C11\u3057\u672C\u683C\u7684'" },
+          cuisineType: { type: import_genai.Type.STRING, description: "'\u548C\u98A8', '\u6D0B\u98A8', '\u4E2D\u83EF', '\u30A8\u30B9\u30CB\u30C3\u30AF', '\u305D\u306E\u4ED6'" },
+          tags: {
+            type: import_genai.Type.ARRAY,
+            items: { type: import_genai.Type.STRING },
+            description: "\u30BF\u30B0 (\u4F8B: '\u6642\u77ED', '\u30D5\u30E9\u30A4\u30D1\u30F31\u3064', '\u4F4E\u30AB\u30ED\u30EA\u30FC', '\u4F5C\u308A\u7F6E\u304D')"
+          },
+          baseServings: {
+            type: import_genai.Type.INTEGER,
+            description: "\u57FA\u6E96\u3068\u306A\u308B\u4EBA\u6570 (\u57FA\u672C\u306F 2 \u4EBA\u524D\u3092\u57FA\u6E96\u3068\u3057\u3066\u6570\u5024\u3092\u8A18\u8F09)"
+          },
+          mainIngredients: {
+            type: import_genai.Type.ARRAY,
+            items: {
+              type: import_genai.Type.OBJECT,
+              properties: {
+                name: { type: import_genai.Type.STRING, description: "\u98DF\u6750\u540D" },
+                baseAmount: { type: import_genai.Type.NUMBER, description: "\u57FA\u6E96\u4EBA\u6570\u5206\u306E\u6570\u91CF (\u6570\u5024\u306E\u307F\u3001\u4F8B: 200, 0.5, 2)" },
+                unit: { type: import_genai.Type.STRING, description: "\u5358\u4F4D (\u4F8B: 'g', '\u500B', '\u672C', '\u679A', '\u4E01', '\u888B')" },
+                note: { type: import_genai.Type.STRING, description: "\u4E0B\u51E6\u7406\u30E1\u30E2\u306A\u3069 (\u4F8B: '\u4E00\u53E3\u5927\u306B\u30AB\u30C3\u30C8')" },
+                isPantryStaple: { type: import_genai.Type.BOOLEAN, description: "\u4E00\u822C\u7684\u306A\u5E38\u5099\u54C1\u304B\u3069\u3046\u304B" }
+              },
+              required: ["name", "baseAmount", "unit"]
+            },
+            description: "\u4E3B\u6750\u6599\u30EA\u30B9\u30C8"
+          },
+          seasonings: {
+            type: import_genai.Type.ARRAY,
+            items: {
+              type: import_genai.Type.OBJECT,
+              properties: {
+                name: { type: import_genai.Type.STRING, description: "\u8ABF\u5473\u6599\u540D (\u4F8B: \u91A4\u6CB9, \u307F\u308A\u3093, \u5473\u564C, \u5869\u3053\u3057\u3087\u3046)" },
+                baseAmount: { type: import_genai.Type.NUMBER, description: "\u57FA\u6E96\u4EBA\u6570\u5206\u306E\u6570\u91CF (\u6570\u5024\u306E\u307F\u3001\u4F8B: 1, 1.5, 0.5)" },
+                unit: { type: import_genai.Type.STRING, description: "\u5358\u4F4D (\u4F8B: '\u5927\u3055\u3058', '\u5C0F\u3055\u3058', '\u5C11\u3005', '\u9069\u91CF', 'g', 'ml')" },
+                note: { type: import_genai.Type.STRING, description: "\u8ABF\u5473\u6599\u306E\u88DC\u8DB3" },
+                isPantryStaple: { type: import_genai.Type.BOOLEAN, description: "\u5E38\u5099\u8ABF\u5473\u6599\u304B\u3069\u3046\u304B" }
+              },
+              required: ["name", "baseAmount", "unit"]
+            },
+            description: "\u8ABF\u5473\u6599\u30EA\u30B9\u30C8"
+          },
+          steps: {
+            type: import_genai.Type.ARRAY,
+            items: {
+              type: import_genai.Type.OBJECT,
+              properties: {
+                stepNumber: { type: import_genai.Type.INTEGER, description: "\u624B\u9806\u756A\u53F7 (1, 2, 3...)" },
+                instruction: { type: import_genai.Type.STRING, description: "\u624B\u9806\u306E\u5206\u304B\u308A\u3084\u3059\u3044\u8AAC\u660E" },
+                timerMinutes: { type: import_genai.Type.INTEGER, description: "\u30BF\u30A4\u30DE\u30FC\u304C\u5FC5\u8981\u306A\u5834\u5408\u306E\u5206\u6570 (\u4EFB\u610F)" },
+                tip: { type: import_genai.Type.STRING, description: "\u3053\u306E\u624B\u9806\u3067\u306E\u30B3\u30C4\u3084\u6CE8\u610F\u70B9" }
+              },
+              required: ["stepNumber", "instruction"]
+            },
+            description: "\u4F5C\u308A\u65B9\u306E\u624B\u9806"
+          },
+          nutritionPerServing: {
+            type: import_genai.Type.OBJECT,
+            properties: {
+              calories: { type: import_genai.Type.INTEGER, description: "1\u4EBA\u524D\u3042\u305F\u308A\u306E\u30AB\u30ED\u30EA\u30FC (kcal)" },
+              protein: { type: import_genai.Type.NUMBER, description: "1\u4EBA\u524D\u3042\u305F\u308A\u306E\u305F\u3093\u3071\u304F\u8CEA (g)" },
+              fat: { type: import_genai.Type.NUMBER, description: "1\u4EBA\u524D\u3042\u305F\u308A\u306E\u8102\u8CEA (g)" },
+              carbohydrates: { type: import_genai.Type.NUMBER, description: "1\u4EBA\u524D\u3042\u305F\u308A\u306E\u70AD\u6C34\u5316\u7269 (g)" },
+              saltEquivalent: { type: import_genai.Type.NUMBER, description: "1\u4EBA\u524D\u3042\u305F\u308A\u306E\u98DF\u5869\u76F8\u5F53\u91CF (g)" },
+              highlights: { type: import_genai.Type.STRING, description: "\u6804\u990A\u9762\u3067\u306E\u30DD\u30A4\u30F3\u30C8\u30FB\u5065\u5EB7\u52B9\u679C\u89E3\u8AAC" }
+            },
+            required: ["calories", "protein", "fat", "carbohydrates", "saltEquivalent"],
+            description: "1\u4EBA\u524D\u3042\u305F\u308A\u306E\u6804\u990A\u60C5\u5831"
+          },
+          chefTips: { type: import_genai.Type.STRING, description: "\u30D7\u30ED\u306E\u30A2\u30C9\u30D0\u30A4\u30B9\u3084\u7F8E\u5473\u3057\u304F\u4ED5\u4E0A\u3052\u308B\u30B3\u30C4\u3001\u4FDD\u5B58\u65B9\u6CD5" }
+        },
+        required: [
+          "id",
+          "title",
+          "subtitle",
+          "description",
+          "cookingTimeMinutes",
+          "difficulty",
+          "cuisineType",
+          "tags",
+          "baseServings",
+          "mainIngredients",
+          "seasonings",
+          "steps",
+          "nutritionPerServing",
+          "chefTips"
+        ]
+      },
+      description: "\u63D0\u6848\u3059\u308B\u53B3\u9078\u3055\u308C\u305F\u5408\u8A085\u901A\u308A\u306E\u30EC\u30B7\u30D4\u30EA\u30B9\u30C8"
+    }
+  },
+  required: ["detectedIngredients", "recipes", "analysisComment", "ad_insertion_index"]
+};
+var QUICK_DETECT_SCHEMA = {
+  type: import_genai.Type.OBJECT,
+  properties: {
+    detectedName: {
+      type: import_genai.Type.STRING,
+      description: "\u7279\u5B9A\u3055\u308C\u305F\u4E3B\u8981\u98DF\u6750\u30FB\u5546\u54C1\u540D\uFF08\u4F8B: \u677F\u3053\u3093\u306B\u3083\u304F\u3001\u8C5A\u30D0\u30E9\u8089\u3001\u713C\u304D\u305D\u3070\u9EBA\u3001\u751F\u9BAD\u3001\u6CB9\u63DA\u3052 \u7B49\uFF09"
+    },
+    category: {
+      type: import_genai.Type.STRING,
+      description: "meat | fish | vegetable | processed | other"
+    },
+    allDetected: {
+      type: import_genai.Type.ARRAY,
+      items: { type: import_genai.Type.STRING },
+      description: "\u753B\u50CF\u304B\u3089\u691C\u51FA\u3055\u308C\u305F\u3059\u3079\u3066\u306E\u98DF\u6750\u30FB\u5546\u54C1\u540D"
+    },
+    ocrText: {
+      type: import_genai.Type.STRING,
+      description: "\u30D1\u30C3\u30B1\u30FC\u30B8\u30FB\u30E9\u30D9\u30EB\u30FB\u30B7\u30FC\u30EB\u304B\u3089\u8AAD\u307F\u53D6\u3063\u305F\u4E3B\u8981\u306A\u5370\u5237\u6587\u5B57\uFF08\u4F8B: \u5929\u7136\u6C34\u4ED5\u8FBC\u307F \u677F\u3053\u3093\u306B\u3083\u304F\uFF09"
+    },
+    confidence: {
+      type: import_genai.Type.STRING,
+      description: "high | medium | low"
+    }
+  },
+  required: ["detectedName", "allDetected", "category"]
+};
+app.post("/api/quick-detect-ingredient", async (req, res) => {
+  try {
+    const { imageBase64, mimeType = "image/jpeg" } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: "\u753B\u50CF\u30C7\u30FC\u30BF\u304C\u63D0\u4F9B\u3055\u308C\u3066\u3044\u307E\u305B\u3093\u3002" });
+    }
+    let cleanBase64 = "";
+    let finalMimeType = mimeType || "image/jpeg";
+    if (typeof imageBase64 === "string" && (imageBase64.startsWith("http://") || imageBase64.startsWith("https://"))) {
+      try {
+        const fetchRes = await fetch(imageBase64);
+        const arrayBuf = await fetchRes.arrayBuffer();
+        cleanBase64 = Buffer.from(arrayBuf).toString("base64");
+        finalMimeType = fetchRes.headers.get("content-type") || "image/jpeg";
+      } catch (fetchErr) {
+        console.warn("Failed to fetch image URL for quick detect:", fetchErr);
+        return res.json({
+          detectedName: "\u98DF\u6750\u5199\u771F",
+          category: "other",
+          allDetected: ["\u98DF\u6750\u5199\u771F"],
+          confidence: "low",
+          ocrText: ""
+        });
+      }
+    } else if (typeof imageBase64 === "string") {
+      cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    }
+    const ai = getGeminiClient();
+    if (!ai) {
+      const visualIngredients = cleanBase64 ? detectIngredientsFromImageBuffer(cleanBase64) : ["\u98DF\u6750\u5199\u771F"];
+      const primary = visualIngredients[0] || "\u98DF\u6750\u5199\u771F";
+      return res.json({
+        detectedName: primary,
+        category: "other",
+        allDetected: visualIngredients,
+        confidence: "medium",
+        ocrText: ""
+      });
+    }
+    const prompt = `\u3042\u306A\u305F\u306F\u98DF\u6750\u30FB\u91CE\u83DC\u30FB\u98DF\u54C1\u30D1\u30C3\u30B1\u30FC\u30B8\u306E\u30DE\u30EB\u30C1\u30E2\u30FC\u30C0\u30EB\u753B\u50CF\u8A8D\u8B58\u304A\u3088\u3073OCR\u306E\u6700\u9AD8\u5CF0\u30A8\u30AD\u30B9\u30D1\u30FC\u30C8\u3067\u3059\uFF08Google\u30EC\u30F3\u30BA\u306E\u3088\u3046\u306B\u753B\u50CF\u305D\u306E\u3082\u306E\u306E\u8996\u899A\u7684\u7279\u5FB4\u304B\u3089\u88AB\u5199\u4F53\u3092\u7279\u5B9A\u3059\u308B\u80FD\u529B\u3092\u6301\u3061\u307E\u3059\uFF09\u3002
+\u63D0\u4F9B\u3055\u308C\u305F\u753B\u50CF\u306B\u5199\u3063\u3066\u3044\u308B\u3010\u98DF\u6750\u305D\u306E\u3082\u306E\uFF08\u751F\u91CE\u83DC\u30FB\u8089\u30FB\u9B5A\u30FB\u679C\u7269\u30FB\u304D\u306E\u3053\u7B49\u306E\u5F62\u72B6\u30FB\u8272\u30FB\u8CEA\u611F\u30FB\u5916\u89B3\uFF09\u3011\u3001\u304A\u3088\u3073\u3010\u98DF\u54C1\u30D1\u30C3\u30B1\u30FC\u30B8\u306B\u66F8\u304B\u308C\u305F\u5546\u54C1\u540D\u3084\u5024\u672D\u30E9\u30D9\u30EB\u30B7\u30FC\u30EB\u3011\u3092\u6B63\u78BA\u306B\u8A8D\u8B58\u30FB\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u6700\u91CD\u8981\uFF01\u751F\u91CE\u83DC\u30FB\u4E38\u3054\u3068\u91CE\u83DC\u30FB\u751F\u9BAE\u98DF\u6750\u306E\u8996\u899A\u8A8D\u8B58\uFF08Google\u30EC\u30F3\u30BA\u76F8\u5F53\u306E\u8996\u899A\u540C\u5B9A\uFF09\u3011
+1. \u30E9\u30D9\u30EB\u3084\u6587\u5B57\u304C\u4E00\u5207\u306A\u3044\u300C\u4E38\u3054\u3068\u306E\u91CE\u83DC\u300D\u300C\u30AB\u30C3\u30C8\u91CE\u83DC\u300D\u300C\u88F8\u306E\u98DF\u6750\u300D\u3092\u3001\u8272\u30FB\u8F2A\u90ED\u30FB\u5F62\u72B6\u30FB\u8CEA\u611F\u304B\u3089\u9AD8\u7CBE\u5EA6\u306B\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044:
+   - \u4EBA\u53C2\uFF08\u30CB\u30F3\u30B8\u30F3\uFF09: \u9BAE\u3084\u304B\u306A\u30AA\u30EC\u30F3\u30B8\u8272\u30FB\u6731\u8272\u3001\u7D30\u9577\u3044\u5186\u9310\u5F62\u30FB\u68D2\u72B6\u306E\u5F62\u72B6\u3001\u30D8\u30BF\u3084\u5148\u7AEF\u306E\u5F62\u72B6\u304B\u3089\u300C\u4EBA\u53C2\uFF08\u306B\u3093\u3058\u3093\uFF09\u300D\u3068\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u5927\u6839\uFF08\u30C0\u30A4\u30B3\u30F3\uFF09: \u767D\u8272\u3067\u592A\u304F\u9577\u3044\u5186\u67F1\u72B6\u3001\u4E0A\u90E8\u306E\u6DE1\u3044\u9EC4\u7DD1\u8272\u30B0\u30E9\u30C7\u30FC\u30B7\u30E7\u30F3\u3001\u3072\u3052\u6839\u306E\u8DE1\u306A\u3069\u304B\u3089\u300C\u5927\u6839\uFF08\u3060\u3044\u3053\u3093\uFF09\u300D\u3068\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u30AD\u30E3\u30D9\u30C4\u30FB\u30EC\u30BF\u30B9\u30FB\u767D\u83DC: \u8449\u306E\u5DFB\u304D\u65B9\u3001\u7DD1\u8272\u301C\u9EC4\u7DD1\u8272\u301C\u767D\u306E\u8449\u8108\u3001\u7403\u72B6\u307E\u305F\u306F\u9577\u7403\u72B6\u306E\u5F62\u72B6\u304B\u3089\u6B63\u78BA\u306B\u5224\u5225\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u30C8\u30DE\u30C8: \u8D64\u8272\u30FB\u6731\u8272\u3001\u4E38\u3044\u7403\u5F62\u3001\u7DD1\u8272\u306E\u661F\u5F62\u306E\u30D8\u30BF\u306A\u3069\u304B\u3089\u300C\u30C8\u30DE\u30C8\u300D\u3068\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u7389\u306D\u304E: \u8336\u8272\u3044\u8584\u76AE\u3001\u307E\u305F\u306F\u767D\u30FB\u9EC4\u8272\u306E\u6241\u5E73\u306A\u7403\u4F53\u304B\u3089\u300C\u7389\u306D\u304E\u300D\u3068\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u3058\u3083\u304C\u3044\u3082\u30FB\u3055\u3064\u307E\u3044\u3082: \u8336\u8910\u8272\u30FB\u9EC4\u571F\u8272\u307E\u305F\u306F\u8D64\u7D2B\u8272\u306E\u76AE\u3001\u3067\u3053\u307C\u3053\u3057\u305F\u4E38\u307F\u30FB\u9577\u6955\u5186\u306E\u5F62\u72B6\u304B\u3089\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+   - \u304D\u3085\u3046\u308A\u30FB\u30CA\u30B9\u30FB\u30D4\u30FC\u30DE\u30F3\u30FB\u30D6\u30ED\u30C3\u30B3\u30EA\u30FC\u30FB\u304B\u307C\u3061\u3083\u30FB\u304D\u306E\u3053\u985E: \u305D\u308C\u305E\u308C\u306E\u56FA\u6709\u306E\u7DD1\u30FB\u7D2B\u30FB\u6FC3\u7DD1\u8272\u3084\u7279\u5FB4\u7684\u306A\u5098\u30FB\u623F\u30FB\u30D8\u30BF\u306E\u5F62\u72B6\u304B\u3089\u6B63\u78BA\u306B\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+2. \u300C\u5375\u300D\u306F\u3001\u767D\u3044\u307E\u305F\u306F\u8584\u8336\u8272\u306E\u6ED1\u3089\u304B\u306A\u6955\u5186\u5F62\u306E\u6BBB\u3001\u307E\u305F\u306F\u30D1\u30C3\u30AF\u5165\u308A\u5375\u306E\u5834\u5408\u306E\u307F\u5224\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u7D30\u9577\u3044\u30AA\u30EC\u30F3\u30B8\u8272\u306E\u30CB\u30F3\u30B8\u30F3\u3084\u3001\u592A\u304F\u767D\u3044\u30C0\u30A4\u30B3\u30F3\u3092\u300C\u5375\u300D\u3068\u8AA4\u8A8D\u8B58\u3059\u308B\u3053\u3068\u306F\u7D76\u5BFE\u306B\u907F\u3051\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u6587\u5B57\u8A8D\u8B58\u30FB\u7B46\u6587\u5B57\u30FB\u30C7\u30B6\u30A4\u30F3\u66F8\u4F53\u30FB\u30E9\u30D9\u30EB\u30B7\u30FC\u30EB\u306E\u8A8D\u8B58\u65B9\u91DD\u3011
+3. \u98DF\u54C1\u30D1\u30C3\u30B1\u30FC\u30B8\u306B\u6BDB\u7B46\u4F53\u30FB\u884C\u66F8\u4F53\u30FB\u7B46\u6587\u5B57\u30ED\u30B4\u30FB\u548C\u98A8\u30C7\u30B6\u30A4\u30F3\u30D5\u30A9\u30F3\u30C8\uFF08\u300C\u677F\u3053\u3093\u306B\u3083\u304F\u300D\u300C\u767D\u6EDD\u300D\u300C\u304D\u3056\u307F\u3042\u3052\u300D\u300C\u3046\u3059\u3042\u3052\u300D\u300C\u6CB9\u63DA\u3052\u300D\u300C\u7D79\u3054\u3057\u8C46\u8150\u300D\u300C\u3042\u3089\u3073\u304D\u30A6\u30A4\u30F3\u30CA\u30FC\u300D\u300C\u713C\u304D\u305D\u3070\u300D\u7B49\uFF09\u304C\u5370\u5237\u3055\u308C\u3066\u3044\u308B\u5834\u5408\u3001\u307E\u305F\u306F\u30B9\u30FC\u30D1\u30FC\u306E\u7CBE\u8089\u30FB\u9BAE\u9B5A\u30FB\u30AB\u30C3\u30C8\u91CE\u83DC\u306E\u5024\u672D\u30E9\u30D9\u30EB\u30B7\u30FC\u30EB\uFF08\u300C\u8C5A\u30D0\u30E9\u8089\u300D\u300C\u751F\u9BAD\u300D\u300C\u30AB\u30C3\u30C8\u30AD\u30E3\u30D9\u30C4\u300D\u7B49\uFF09\u304C\u3042\u308B\u5834\u5408\u306F\u3001\u305D\u306E\u6587\u5B57\u60C5\u5831\u3082\u6B63\u78BA\u306B\u89E3\u8AAD\u3057\u3066\u7167\u5408\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+4. \u88AB\u5199\u4F53\u3068\u3057\u3066\u6700\u3082\u76EE\u7ACB\u3063\u3066\u3044\u308B\u4E3B\u5F79\u98DF\u6750\u306E\u540D\u79F0\uFF08\u4F8B: \u300C\u4EBA\u53C2\u300D\u300C\u5927\u6839\u300D\u300C\u30AD\u30E3\u30D9\u30C4\u300D\u300C\u30C8\u30DE\u30C8\u300D\u300C\u8C5A\u30D0\u30E9\u8089\u300D\u300C\u677F\u3053\u3093\u306B\u3083\u304F\u300D\u7B49\uFF09\u3092 detectedName \u3068\u3057\u3066\u8FD4\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents: [
+        {
+          inlineData: {
+            mimeType: finalMimeType || "image/jpeg",
+            data: cleanBase64
+          }
+        },
+        {
+          text: prompt
+        }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: QUICK_DETECT_SCHEMA
+      }
+    });
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("Empty response from Gemini API");
+    }
+    const parsedData = JSON.parse(responseText);
+    res.json(parsedData);
+  } catch (error) {
+    console.error("Error in quick-detect-ingredient:", error?.message || error);
+    res.json({
+      detectedName: "\u98DF\u6750\u5199\u771F",
+      category: "other",
+      allDetected: ["\u98DF\u6750\u5199\u771F"],
+      confidence: "low",
+      ocrText: ""
+    });
+  }
+});
+app.post("/api/analyze-food-image", async (req, res) => {
+  try {
+    const { imageBase64, mimeType = "image/jpeg", preferences = {} } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: "\u753B\u50CF\u30C7\u30FC\u30BF\u304C\u63D0\u4F9B\u3055\u308C\u3066\u3044\u307E\u305B\u3093\u3002" });
+    }
+    let cleanBase64 = "";
+    let finalMimeType = mimeType || "image/jpeg";
+    if (typeof imageBase64 === "string" && (imageBase64.startsWith("http://") || imageBase64.startsWith("https://"))) {
+      try {
+        const fetchRes = await fetch(imageBase64);
+        const arrayBuf = await fetchRes.arrayBuffer();
+        cleanBase64 = Buffer.from(arrayBuf).toString("base64");
+        finalMimeType = fetchRes.headers.get("content-type") || "image/jpeg";
+      } catch (fetchErr) {
+        console.warn("Failed to fetch image URL, using smart recipe generator:", fetchErr);
+        const dynamicResult = generateSmartRecipes([], preferences);
+        return res.json(dynamicResult);
+      }
+    } else if (typeof imageBase64 === "string") {
+      cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    }
+    const visualIngredients = cleanBase64 ? detectIngredientsFromImageBuffer(cleanBase64) : [];
+    const ai = getGeminiClient();
+    if (!ai) {
+      const dynamicResult = generateSmartRecipes(visualIngredients, preferences);
+      return res.json(dynamicResult);
+    }
+    const preferenceText = [
+      preferences.time ? `\u8ABF\u7406\u6642\u9593\u5E0C\u671B: ${preferences.time}` : "",
+      preferences.cuisine ? `\u6599\u7406\u30B8\u30E3\u30F3\u30EB\u5E0C\u671B: ${preferences.cuisine}` : "",
+      preferences.mood ? `\u30C6\u30FC\u30DE/\u6C17\u5206: ${preferences.mood}` : "",
+      preferences.customIngredients && preferences.customIngredients.length > 0 ? `\u6307\u5B9A\u98DF\u6750: ${preferences.customIngredients.join(", ")}` : "",
+      preferences.staples && preferences.staples.length > 0 ? `\u5BB6\u306B\u3042\u308B\u8ABF\u5473\u6599\uFF08\u53B3\u5B88\uFF09: ${preferences.staples.join(", ")}` : "",
+      preferences.detectedHint ? `\u30E6\u30FC\u30B6\u30FC\u78BA\u8A8D\u6E08\u307F\u306E\u4E3B\u5F79\u98DF\u6750: ${preferences.detectedHint}` : ""
+    ].filter(Boolean).join(", ");
+    const prompt = `\u3042\u306A\u305F\u306F\u4E00\u6D41\u306E\u6599\u7406\u7814\u7A76\u5BB6\u517C\u7BA1\u7406\u6804\u990A\u58EB\u3067\u3059\u3002
+\u63D0\u4F9B\u3055\u308C\u305F\u753B\u50CF\u306B\u5199\u3063\u3066\u3044\u308B\u3010\u98DF\u6750\u305D\u306E\u3082\u306E\uFF08\u4E38\u3054\u3068\u306E\u751F\u91CE\u83DC\u30FB\u8089\u30FB\u9B5A\u30FB\u304D\u306E\u3053\u7B49\u306E\u5F62\u72B6\u30FB\u8272\u30FB\u8CEA\u611F\uFF09\u3011\u3001\u304A\u3088\u3073\u3010\u30B9\u30FC\u30D1\u30FC\u306E\u98DF\u54C1\u30D1\u30C3\u30AF\u306B\u8CBC\u3089\u308C\u305F\u5024\u672D\u30E9\u30D9\u30EB\u30FB\u5546\u54C1\u540D\u30B7\u30FC\u30EB\u30FB\u30D1\u30C3\u30B1\u30FC\u30B8\u5370\u5237\u6587\u5B57\uFF08\u4F8B: \u300C\u30AB\u30EC\u30FC\u30EB\u30FC\u300D\u300C\u30AB\u30EC\u30FC\u7C89\u300D\u300C\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u300D\u300C\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u300D\u300C\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\uFF08\u30C8\u30DE\u30C8\u7F36\uFF09\u300D\u300C\u30B3\u30F3\u30BD\u30E1\u300D\u300C\u30D6\u30A4\u30E8\u30F3\u300D\u300C\u677F\u3053\u3093\u306B\u3083\u304F\u300D\u300C\u767D\u6EDD\u300D\u300C\u8C5A\u30D0\u30E9\u3046\u3059\u5207\u308A\u300D\u300C\u8C5A\u30ED\u30FC\u30B9\u751F\u59DC\u713C\u304D\u7528\u300D\u300C\u725B\u80A9\u30ED\u30FC\u30B9\u300D\u300C\u725B\u30AB\u30EB\u30D3\u300D\u300C\u771F\u9BDB\u5207\u308A\u8EAB\u300D\u300C\u751F\u9BAD\u300D\u300C\u30AB\u30C3\u30C8\u30AD\u30E3\u30D9\u30C4\u300D\u300C\u30ED\u30FC\u30B9\u30CF\u30E0\u300D\u300C\u30CF\u30FC\u30D5\u30D9\u30FC\u30B3\u30F3\u300D\u300C\u3042\u3089\u3073\u304D\u30A6\u30A4\u30F3\u30CA\u30FC\u300D\u300C\u30BD\u30FC\u30BB\u30FC\u30B8\u300D\u300C\u30B5\u30E9\u30C0\u30C1\u30AD\u30F3\u300D\u300C\u713C\u304D\u305D\u3070\uFF08\u8339\u3067\u9EBA\uFF09\u300D\u300C\u3046\u3069\u3093\u300D\u300C\u305D\u3070\u300D\u300C\u4E2D\u83EF\u9EBA\u30FB\u30E9\u30FC\u30E1\u30F3\u300D\u300C\u304D\u3056\u307F\u3042\u3052\u300D\u300C\u3046\u3059\u3042\u3052\uFF08\u6CB9\u63DA\u3052\uFF09\u300D\u300C\u3042\u3064\u3042\u3052\u300D\u300C\u3061\u304F\u308F\u300D\u300C\u30AB\u30CB\u30AB\u30DE\u300D\u300C\u7D79\u3054\u3057\u8C46\u8150\u300D\u7B49\uFF09\u3011\u3092\u30DE\u30EB\u30C1\u30E2\u30FC\u30C0\u30EB\u753B\u50CF\u8A8D\u8B58\u30FBOCR\u3057\u3001\u98DF\u6750\u540D\u3084\u5546\u54C1\u540D\u3092Google\u30EC\u30F3\u30BA\u306E\u3088\u3046\u306B\u9AD8\u7CBE\u5EA6\u306B\u8AAD\u307F\u53D6\u3063\u3066\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u6700\u91CD\u8981\uFF01\u751F\u91CE\u83DC\u30FB\u4E38\u3054\u3068\u91CE\u83DC\u30FB\u751F\u9BAE\u98DF\u6750\u306E\u8996\u899A\u8A8D\u8B58\uFF08Google\u30EC\u30F3\u30BA\u76F8\u5F53\u306E\u8996\u899A\u540C\u5B9A\uFF09\u3011
+- \u6587\u5B57\u3084\u30E9\u30D9\u30EB\u306E\u306A\u3044\u300C\u4E38\u3054\u3068\u306E\u4EBA\u53C2\u300D\u300C\u5927\u6839\u300D\u300C\u30AD\u30E3\u30D9\u30C4\u300D\u300C\u30C8\u30DE\u30C8\u300D\u300C\u7389\u306D\u304E\u300D\u300C\u3058\u3083\u304C\u3044\u3082\u300D\u300C\u304D\u3085\u3046\u308A\u300D\u7B49\u306E\u91CE\u83DC\u306F\u3001\u305D\u306E\u9BAE\u3084\u304B\u306A\u30AA\u30EC\u30F3\u30B8\u8272\u3001\u7D30\u9577\u3044\u5F62\u3001\u592A\u3044\u5186\u67F1\u3001\u4E38\u307F\u3001\u8449\u8108\u306A\u3069\u306E\u8996\u899A\u7684\u7279\u5FB4\u304B\u3089\u76F4\u63A5\u6B63\u78BA\u306B\u7279\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u6C7A\u3057\u3066\u5B89\u6613\u306B\u300C\u5375\u300D\u306A\u3069\u306B\u8AA4\u8A8D\u8B58\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u6587\u5B57\u8A8D\u8B58\u30FB\u7B46\u6587\u5B57\u30FB\u30C7\u30B6\u30A4\u30F3\u66F8\u4F53\u306E\u6700\u91CD\u8981\u65B9\u91DD\u3011
+- \u65E5\u672C\u306E\u4F1D\u7D71\u98DF\u54C1\u3084\u52A0\u5DE5\u98DF\u54C1\u3001\u8ABF\u5473\u6599\u30FB\u30EB\u30FC\uFF08\u4F8B: \u300C\u30AB\u30EC\u30FC\u30EB\u30FC\u300D\u300C\u30AB\u30EC\u30FC\u7C89\u300D\u300C\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u300D\u300C\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u300D\u300C\u30C8\u30DE\u30C8\u7F36\u300D\u300C\u30B3\u30F3\u30BD\u30E1\u300D\u300C\u677F\u3053\u3093\u306B\u3083\u304F\u300D\u300C\u767D\u6EDD\u300D\u300C\u304D\u3056\u307F\u3042\u3052\u300D\u300C\u3046\u3059\u3042\u3052\u300D\u300C\u6CB9\u63DA\u3052\u300D\u300C\u539A\u63DA\u3052\u300D\u300C\u7D79\u3054\u3057\u8C46\u8150\u300D\u300C\u6728\u7DBF\u8C46\u8150\u300D\u300C\u3042\u3089\u3073\u304D\u30A6\u30A4\u30F3\u30CA\u30FC\u300D\u300C\u30ED\u30FC\u30B9\u30CF\u30E0\u300D\u300C\u30D9\u30FC\u30B3\u30F3\u300D\u300C\u713C\u304D\u305D\u3070\u300D\u300C\u3046\u3069\u3093\u300D\u300C\u305D\u3070\u300D\u300C\u30E9\u30FC\u30E1\u30F3\u300D\u300C\u7D0D\u8C46\u300D\u306A\u3069\uFF09\u306F\u3001\u30D1\u30C3\u30B1\u30FC\u30B8\u306B\u500B\u6027\u7684\u306A\u30D5\u30A9\u30F3\u30C8\u3084\u7B46\u6587\u5B57\u30ED\u30B4\u3067\u5927\u304D\u304F\u5370\u5237\u3055\u308C\u3066\u3044\u308B\u3053\u3068\u304C\u591A\u3044\u3067\u3059\u3002\u6B63\u78BA\u306B\u54C1\u540D\u3092\u89E3\u8AAD\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+- \u5916\u898B\u304B\u3089\u5224\u5225\u3057\u306B\u304F\u3044\u751F\u306E\u5207\u308A\u8EAB\u3084\u751F\u8089\u3001\u30AB\u30C3\u30C8\u91CE\u83DC\u3001\u52A0\u5DE5\u8089\u30FB\u52A0\u5DE5\u98DF\u54C1\u30FB\u9EBA\u985E\u3001\u30EB\u30FC\u30FB\u8ABF\u5473\u6599\u3067\u3082\u3001\u30E9\u30D9\u30EB\u3084\u30D1\u30C3\u30B1\u30FC\u30B8\u306B\u5370\u5B57\u30FB\u8CBC\u4ED8\u3055\u308C\u3066\u3044\u308B\u6587\u5B57\u60C5\u5831\uFF08\u54C1\u540D\u3001\u5546\u54C1\u540D\u3001\u90E8\u4F4D\u540D\u3001\u7528\u9014\uFF09\u3092\u6700\u512A\u5148\u3067\u89E3\u8AAD\u3057\u3001\u6B63\u78BA\u306A\u98DF\u6750\u540D\uFF08\u4F8B: \u300C\u30AB\u30EC\u30FC\u30EB\u30FC\u300D\u300C\u30AB\u30EC\u30FC\u7C89\u300D\u300C\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u300D\u300C\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u300D\u300C\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u300D\u300C\u30B3\u30F3\u30BD\u30E1\u300D\u300C\u30D6\u30A4\u30E8\u30F3\u300D\u300C\u8C5A\u30D0\u30E9\u8089\u300D\u300C\u30B5\u30E9\u30C0\u30C1\u30AD\u30F3\u300D\u7B49\uFF09\u3068\u3057\u3066detectedIngredients\u306B\u8A8D\u8B58\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+- \u8907\u6570\u7A2E\u985E\u306E\u98DF\u6750\u3084\u30E9\u30D9\u30EB\u304C\u5199\u3063\u3066\u3044\u308B\u5834\u5408\u306F\u3001\u5199\u3063\u3066\u3044\u308B\u3059\u3079\u3066\u306E\u98DF\u6750\u3092\u6F0F\u3089\u3055\u305A\u30EA\u30B9\u30C8\u30A2\u30C3\u30D7\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u305D\u306E\u98DF\u6750\u3092\u4E3B\u5F79\u306B\u3001\u65E5\u672C\u306E\u5BB6\u5EAD\u3067\u624B\u8EFD\u304B\u3064\u7F8E\u5473\u3057\u304F\u4F5C\u308C\u308B\u30EC\u30B7\u30D4\u3092\u3010\u53B3\u9078\u3055\u308C\u305F\u5408\u8A085\u7A2E\u985E\uFF085\u901A\u308A\uFF09\u3011\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u6700\u91CD\u8981\uFF01\u738B\u9053\u30FB\u5B9A\u756A\u6599\u7406\u306E\u6700\u512A\u5148\u539F\u5247\u3011
+\u2605\u300C\u30AB\u30EC\u30FC\u30EB\u30FC\u300D\u300C\u30AB\u30EC\u30FC\u7C89\u300D\u300C\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\uFF08\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\uFF09\u300D\u300C\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u300D\u300C\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\uFF08\u30C8\u30DE\u30C8\u7F36\uFF09\u300D\u300C\u30B3\u30F3\u30BD\u30E1\u300D\u300C\u30D6\u30A4\u30E8\u30F3\u300D\u7B49\u306E\u30EB\u30FC\u30FB\u6D0B\u98A8\u30BD\u30FC\u30B9\u30FB\u8ABF\u5473\u6599\u304C\u6307\u5B9A\u307E\u305F\u306F\u8A8D\u8B58\u3055\u308C\u305F\u5834\u5408\u3001\u3042\u308B\u3044\u306F\u8089\u30FB\u7389\u306D\u304E\u30FB\u4EBA\u53C2\u30FB\u3058\u3083\u304C\u3044\u3082\u7B49\u306E\u5B9A\u756A\u5177\u6750\u304C\u63C3\u3063\u3066\u3044\u308B\u5834\u5408\u306F\u3001\u5947\u3092\u3066\u3089\u308F\u305A\u306B\u3010\u8AB0\u3082\u304C\u4E00\u756A\u98DF\u3079\u305F\u3044\u738B\u9053\u30FB\u5B9A\u756A\u306E\u4EE3\u8868\u30EC\u30B7\u30D4\u3011\u3092\u5FC5\u305A\u7B2C1\u54C1\u76EE\uFF08\u30C8\u30C3\u30D7\uFF09\u306B\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\uFF01
+  - \u30AB\u30EC\u30FC\u30EB\u30FC/\u30AB\u30EC\u30FC\u7C89\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u304A\u3046\u3061\u306E\u738B\u9053\u5B9A\u756A\u30AB\u30EC\u30FC\uFF08\u30DD\u30FC\u30AF\u30AB\u30EC\u30FC/\u30C1\u30AD\u30F3\u30AB\u30EC\u30FC/\u30D3\u30FC\u30D5\u30AB\u30EC\u30FC/\u30AD\u30FC\u30DE\u30AB\u30EC\u30FC\u7B49\uFF09\u300F\u3011\u3092\u63D0\u6848\u3057\u30012\u54C1\u76EE\u4EE5\u964D\u306B\u30C9\u30E9\u30A4\u30AB\u30EC\u30FC\u3001\u30AB\u30EC\u30FC\u3046\u3069\u3093\u3001\u713C\u304D\u30AB\u30EC\u30FC\u30C9\u30EA\u30A2\u3001\u30AB\u30EC\u30FC\u30B9\u30FC\u30D7\u7B49\u306E\u9B45\u529B\u7684\u306A\u30D0\u30EA\u30A8\u30FC\u30B7\u30E7\u30F3\u3092\u5C55\u958B\u3059\u308B\u3053\u3068\u3002\u6C7A\u3057\u3066\u30AB\u30EC\u30FC\u305D\u306E\u3082\u306E\u3092\u9664\u5916\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+  - \u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u738B\u9053\u306E\u30DB\u30EF\u30A4\u30C8\u30AF\u30EA\u30FC\u30E0\u30B7\u30C1\u30E5\u30FC\u300F\u3011\u3001\u7D9A\u3044\u3066\u30D1\u30F3\u30B0\u30E9\u30BF\u30F3\u3001\u30AF\u30EA\u30FC\u30E0\u716E\u8FBC\u307F\u3001\u30B9\u30FC\u30D7\u7B49\u3002
+  - \u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u6D0B\u98DF\u5C4B\u3055\u3093\u306E\u738B\u9053\u30CF\u30E4\u30B7\u30E9\u30A4\u30B9\u300F\u307E\u305F\u306F\u300E\u672C\u683C\u30C7\u30DF\u30B0\u30E9\u30B9\u716E\u8FBC\u307F\u30CF\u30F3\u30D0\u30FC\u30B0/\u30D3\u30FC\u30D5\u30B7\u30C1\u30E5\u30FC\u300F\u3011\u3002
+  - \u30C8\u30DE\u30C8\u30BD\u30FC\u30B9/\u30C8\u30DE\u30C8\u7F36\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u9D8F\u8089\u3068\u91CE\u83DC\u306E\u738B\u9053\u30C8\u30DE\u30C8\u716E\u8FBC\u307F\uFF08\u30AB\u30C1\u30E3\u30C8\u30FC\u30E9\uFF09\u300F\u307E\u305F\u306F\u300E\u6FC3\u539A\u30C8\u30DE\u30C8\u30D1\u30B9\u30BF\u300F\u3011\u3002
+  - \u30B3\u30F3\u30BD\u30E1/\u30D6\u30A4\u30E8\u30F3\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u304A\u8089/\u30A6\u30A4\u30F3\u30CA\u30FC\u3068\u91CE\u83DC\u306E\u738B\u9053\u30DD\u30C8\u30D5\u300F\u307E\u305F\u306F\u300E\u5177\u3060\u304F\u3055\u3093\u30B3\u30F3\u30BD\u30E1\u30B9\u30FC\u30D7\u300F\u3011\u3002
+
+\u3010\u91CD\u8981\u8981\u4EF6\u3011
+1. \u30E9\u30D9\u30EB\u3084\u30D1\u30C3\u30B1\u30FC\u30B8\u304B\u3089\u8AAD\u307F\u53D6\u3063\u305F\u6B63\u78BA\u306A\u98DF\u6750\u540D\uFF08\u304A\u3088\u3073\u30E6\u30FC\u30B6\u30FC\u6307\u5B9A\u98DF\u6750\uFF09\u3092\u3001\u3059\u3079\u3066\u306E\u30EC\u30B7\u30D4\u306EmainIngredients\u306B\u5FC5\u305A100%\u6D3B\u7528\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+2. \u52A0\u5DE5\u8089\uFF08\u30CF\u30E0\u3001\u30D9\u30FC\u30B3\u30F3\u3001\u30A6\u30A4\u30F3\u30CA\u30FC\u7B49\uFF09\u3084\u9EBA\u985E\u3001\u30EB\u30FC\u30FB\u8ABF\u5473\u6599\uFF08\u30AB\u30EC\u30FC\u30EB\u30FC\u3001\u30B7\u30C1\u30E5\u30FC\u3001\u30C7\u30DF\u30B0\u30E9\u30B9\u3001\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\u3001\u30B3\u30F3\u30BD\u30E1\u3001\u30D6\u30A4\u30E8\u30F3\u7B49\uFF09\u304C\u5199\u3063\u3066\u3044\u308B\u5834\u5408\u306F\u3001\u305D\u306E\u7279\u6027\u3092\u6700\u5927\u9650\u306B\u6D3B\u304B\u3057\u305F\u7F8E\u5473\u3057\u3044\u30EC\u30B7\u30D4\u3092\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+3. \u5FC5\u305A\u30105\u7A2E\u985E\u3011\u306E\u30EC\u30B7\u30D4\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\u914D\u5217\u3068\u3057\u3066\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+4. \u4EBA\u6570\uFF08\u4F55\u4EBA\u524D\uFF09\u306E\u8A08\u7B97\u3092\u6B63\u78BA\u306B\u884C\u3046\u305F\u3081\u3001\u98DF\u6750\u30FB\u8ABF\u5473\u6599\u306E\u300CbaseAmount\u300D\uFF08\u6570\u5024\u306E\u307F\uFF09\u3068\u300Cunit\u300D\uFF08\u5358\u4F4D\uFF09\u3092\u660E\u78BA\u306B\u5206\u3051\u3066\u5B9A\u7FA9\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u57FA\u6E96\u4EBA\u6570\u306F\u300CbaseServings: 2\u300D\uFF082\u4EBA\u524D\uFF09\u3068\u3057\u3066\u6570\u5024\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+5. 1\u4EBA\u524D\u3042\u305F\u308A\u306E\u30AB\u30ED\u30EA\u30FC\uFF08kcal\uFF09\u3001\u305F\u3093\u3071\u304F\u8CEA\uFF08g\uFF09\u3001\u8102\u8CEA\uFF08g\uFF09\u3001\u70AD\u6C34\u5316\u7269\uFF08g\uFF09\u3001\u98DF\u5869\u76F8\u5F53\u91CF\uFF08g\uFF09\u3092\u7BA1\u7406\u6804\u990A\u58EB\u306E\u89B3\u70B9\u304B\u3089\u6B63\u78BA\u306B\u7B97\u51FA\u3057\u3066\u8A18\u8F09\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+6. \u8ABF\u7406\u624B\u9806\uFF08steps\uFF09\u306F\u521D\u5FC3\u8005\u3067\u3082\u308F\u304B\u308A\u3084\u3059\u304F\u3001\u706B\u52A0\u6E1B\u3084\u76EE\u5B89\u6642\u9593\u3092\u660E\u8A18\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u716E\u8FBC\u307F\u3084\u84B8\u3057\u713C\u304D\u306E\u30BF\u30A4\u30DE\u30FC\u5206\u6570\u3082\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+7. \u8ABF\u5473\u6599\u306F\u3001\u30E6\u30FC\u30B6\u30FC\u304C\u6307\u5B9A\u3057\u305F\u5BB6\u306B\u3042\u308B\u8ABF\u5473\u6599\uFF08${preferences.staples && preferences.staples.length > 0 ? preferences.staples.join(", ") : "\u4E00\u822C\u7684\u306A\u57FA\u672C\u8ABF\u5473\u6599"}\uFF09\u3092\u6700\u512A\u5148\u30FB\u53B3\u5B88\u3067\u4F7F\u7528\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+8. \u3010\u5E83\u544A\u633F\u5165\u7528\u30A4\u30F3\u30C7\u30C3\u30AF\u30B9\u306E\u6307\u5B9A\uFF08ad_insertion_index\uFF09\u3011: \u30A2\u30D7\u30EA\u5074\u30675\u3064\u306E\u30EC\u30B7\u30D4\u306E\u300C3\u756A\u76EE\u30684\u756A\u76EE\u306E\u30EC\u30B7\u30D4\u306E\u9593\u300D\u306B\u30CD\u30A4\u30C6\u30A3\u30D6\u5E83\u544A\uFF08PR\uFF09\u3092\u52D5\u7684\u306B\u3001\u304B\u3064\u81EA\u7136\u306B\u633F\u5165\u3067\u304D\u308B\u3088\u3046\u3001\u51FA\u529B\u3059\u308BJSON\u306E\u30EB\u30FC\u30C8\u968E\u5C64\u306B\u5FC5\u305A "ad_insertion_index": 2\uFF080\u304B\u3089\u6570\u3048\u30663\u756A\u76EE\u306E\u8981\u7D20\u306E\u76F4\u5F8C\uFF09\u3092\u542B\u3081\u3066\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+${preferenceText ? `\u3010\u30E6\u30FC\u30B6\u30FC\u306E\u5E0C\u671B\u6761\u4EF6\u3011: ${preferenceText}` : ""}`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents: [
+        {
+          inlineData: {
+            mimeType: finalMimeType || "image/jpeg",
+            data: cleanBase64
+          }
+        },
+        {
+          text: prompt
+        }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: RECIPE_RESPONSE_SCHEMA
+      }
+    });
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("Gemini API\u304B\u3089\u7A7A\u306E\u5FDC\u7B54\u304C\u8FD4\u3055\u308C\u307E\u3057\u305F\u3002");
+    }
+    const parsedData = JSON.parse(responseText);
+    res.json(parsedData);
+  } catch (error) {
+    console.error("Error analyzing image with Gemini API:", error?.message || error);
+    const cleanBase64 = (req.body?.imageBase64 || "").replace(/^data:image\/\w+;base64,/, "");
+    const visualIngredients = cleanBase64 ? detectIngredientsFromImageBuffer(cleanBase64) : [];
+    const dynamicResult = generateSmartRecipes(visualIngredients, req.body?.preferences || {});
+    res.json({
+      ...dynamicResult,
+      isOfflineMode: true,
+      analysisComment: `${dynamicResult.analysisComment}\uFF08\u203BAI\u9AD8\u901F\u63A8\u5968\u30E2\u30FC\u30C9\u3067\u751F\u6210\uFF09`
+    });
+  }
+});
+app.post("/api/generate-recipes", async (req, res) => {
+  try {
+    const { ingredients = [], preferences = {} } = req.body;
+    if (!ingredients || ingredients.length === 0) {
+      return res.status(400).json({ error: "\u98DF\u6750\u304C\u5165\u529B\u3055\u308C\u3066\u3044\u307E\u305B\u3093\u3002" });
+    }
+    const ai = getGeminiClient();
+    if (!ai) {
+      const dynamicResult = generateSmartRecipes(ingredients, preferences);
+      return res.json(dynamicResult);
+    }
+    const preferenceText = [
+      preferences.time ? `\u8ABF\u7406\u6642\u9593\u5E0C\u671B: ${preferences.time}` : "",
+      preferences.cuisine ? `\u6599\u7406\u30B8\u30E3\u30F3\u30EB\u5E0C\u671B: ${preferences.cuisine}` : "",
+      preferences.mood ? `\u30C6\u30FC\u30DE/\u6C17\u5206: ${preferences.mood}` : "",
+      preferences.staples && preferences.staples.length > 0 ? `\u5BB6\u306B\u3042\u308B\u8ABF\u5473\u6599\uFF08\u53B3\u5B88\uFF09: ${preferences.staples.join(", ")}` : ""
+    ].filter(Boolean).join(", ");
+    const prompt = `\u3042\u306A\u305F\u306F\u4E00\u6D41\u306E\u6599\u7406\u7814\u7A76\u5BB6\u517C\u7BA1\u7406\u6804\u990A\u58EB\u3067\u3059\u3002
+\u30E6\u30FC\u30B6\u30FC\u304C\u6307\u5B9A\u3057\u305F\u4EE5\u4E0B\u306E\u3010\u6307\u5B9A\u98DF\u6750\u3011\u3092\u3059\u3079\u3066\u4F7F\u3063\u3066\u3001\u65E5\u672C\u306E\u5BB6\u5EAD\u3067\u4F5C\u308C\u308B\u7F8E\u5473\u3057\u3044\u30EC\u30B7\u30D4\u3092\u3010\u53B3\u9078\u3055\u308C\u305F\u5408\u8A085\u7A2E\u985E\uFF085\u901A\u308A\uFF09\u3011\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u3010\u6307\u5B9A\u98DF\u6750\uFF08\u5FC5\u9808\uFF09\u3011: ${ingredients.join(", ")}
+${preferenceText ? `\u3010\u30E6\u30FC\u30B6\u30FC\u306E\u5E0C\u671B\u6761\u4EF6\u3011: ${preferenceText}` : ""}
+
+\u3010\u6700\u91CD\u8981\uFF01\u738B\u9053\u30FB\u5B9A\u756A\u6599\u7406\u306E\u6700\u512A\u5148\u539F\u5247\u3011
+\u2605\u300C\u30AB\u30EC\u30FC\u30EB\u30FC\u300D\u300C\u30AB\u30EC\u30FC\u7C89\u300D\u300C\u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\uFF08\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\uFF09\u300D\u300C\u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u300D\u300C\u30C8\u30DE\u30C8\u30BD\u30FC\u30B9\uFF08\u30C8\u30DE\u30C8\u7F36\uFF09\u300D\u300C\u30B3\u30F3\u30BD\u30E1\u300D\u300C\u30D6\u30A4\u30E8\u30F3\u300D\u7B49\u306E\u30EB\u30FC\u30FB\u6D0B\u98A8\u30BD\u30FC\u30B9\u30FB\u8ABF\u5473\u6599\u304C\u6307\u5B9A\u98DF\u6750\u307E\u305F\u306F\u8ABF\u5473\u6599\u306B\u542B\u307E\u308C\u308B\u5834\u5408\u3001\u3042\u308B\u3044\u306F\u8089\u30FB\u7389\u306D\u304E\u30FB\u4EBA\u53C2\u30FB\u3058\u3083\u304C\u3044\u3082\u7B49\u306E\u5B9A\u756A\u30AB\u30EC\u30FC/\u30B7\u30C1\u30E5\u30FC\u98DF\u6750\u304C\u542B\u307E\u308C\u308B\u5834\u5408\u306F\u3001\u5947\u3092\u3066\u3089\u308F\u305A\u306B\u3010\u8AB0\u3082\u304C\u4E00\u756A\u98DF\u3079\u305F\u3044\u738B\u9053\u30FB\u5B9A\u756A\u306E\u4EE3\u8868\u30EC\u30B7\u30D4\u3011\u3092\u5FC5\u305A\u7B2C1\u54C1\u76EE\uFF08\u30C8\u30C3\u30D7\uFF09\u306B\u63D0\u6848\u3057\u3066\u304F\u3060\u3055\u3044\uFF01
+  - \u30AB\u30EC\u30FC\u30EB\u30FC/\u30AB\u30EC\u30FC\u7C89\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u304A\u3046\u3061\u306E\u738B\u9053\u5B9A\u756A\u30AB\u30EC\u30FC\uFF08\u30DD\u30FC\u30AF\u30AB\u30EC\u30FC/\u30C1\u30AD\u30F3\u30AB\u30EC\u30FC/\u30D3\u30FC\u30D5\u30AB\u30EC\u30FC/\u30AD\u30FC\u30DE\u30AB\u30EC\u30FC\u7B49\uFF09\u300F\u3011\u3092\u63D0\u6848\u3057\u30012\u54C1\u76EE\u4EE5\u964D\u306B\u30C9\u30E9\u30A4\u30AB\u30EC\u30FC\u3001\u30AB\u30EC\u30FC\u3046\u3069\u3093\u3001\u713C\u304D\u30AB\u30EC\u30FC\u30C9\u30EA\u30A2\u3001\u30AB\u30EC\u30FC\u30B9\u30FC\u30D7\u7B49\u306E\u9B45\u529B\u7684\u306A\u30D0\u30EA\u30A8\u30FC\u30B7\u30E7\u30F3\u3092\u5C55\u958B\u3059\u308B\u3053\u3068\u3002\u6C7A\u3057\u3066\u30AB\u30EC\u30FC\u305D\u306E\u3082\u306E\u3092\u9664\u5916\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+  - \u30DB\u30EF\u30A4\u30C8\u30B7\u30C1\u30E5\u30FC\u30EB\u30FC\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u738B\u9053\u306E\u30DB\u30EF\u30A4\u30C8\u30AF\u30EA\u30FC\u30E0\u30B7\u30C1\u30E5\u30FC\u300F\u3011\u3001\u7D9A\u3044\u3066\u30D1\u30F3\u30B0\u30E9\u30BF\u30F3\u3001\u30AF\u30EA\u30FC\u30E0\u716E\u8FBC\u307F\u3001\u30B9\u30FC\u30D7\u7B49\u3002
+  - \u30C7\u30DF\u30B0\u30E9\u30B9\u30BD\u30FC\u30B9\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u6D0B\u98DF\u5C4B\u3055\u3093\u306E\u738B\u9053\u30CF\u30E4\u30B7\u30E9\u30A4\u30B9\u300F\u307E\u305F\u306F\u300E\u672C\u683C\u30C7\u30DF\u30B0\u30E9\u30B9\u716E\u8FBC\u307F\u30CF\u30F3\u30D0\u30FC\u30B0/\u30D3\u30FC\u30D5\u30B7\u30C1\u30E5\u30FC\u300F\u3011\u3002
+  - \u30C8\u30DE\u30C8\u30BD\u30FC\u30B9/\u30C8\u30DE\u30C8\u7F36\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u9D8F\u8089\u3068\u91CE\u83DC\u306E\u738B\u9053\u30C8\u30DE\u30C8\u716E\u8FBC\u307F\uFF08\u30AB\u30C1\u30E3\u30C8\u30FC\u30E9\uFF09\u300F\u307E\u305F\u306F\u300E\u6FC3\u539A\u30C8\u30DE\u30C8\u30D1\u30B9\u30BF\u300F\u3011\u3002
+  - \u30B3\u30F3\u30BD\u30E1/\u30D6\u30A4\u30E8\u30F3\u304C\u3042\u308B\u5834\u5408 \u2192 \u3010\u7B2C1\u54C1\u76EE\u306F\u5FC5\u305A\u300E\u304A\u8089/\u30A6\u30A4\u30F3\u30CA\u30FC\u3068\u91CE\u83DC\u306E\u738B\u9053\u30DD\u30C8\u30D5\u300F\u307E\u305F\u306F\u300E\u5177\u3060\u304F\u3055\u3093\u30B3\u30F3\u30BD\u30E1\u30B9\u30FC\u30D7\u300F\u3011\u3002
+
+\u3010\u6700\u91CD\u8981\u30FB\u53B3\u5B88\u8981\u4EF6\u3011
+1. \u6307\u5B9A\u3055\u308C\u305F\u98DF\u6750\uFF08${ingredients.join(", ")}\uFF09\u306F\u3001\u63D0\u6848\u3059\u308B\u3010\u3059\u3079\u3066\u306E\u30EC\u30B7\u30D4\u3011\u306EmainIngredients\u304A\u3088\u3073detectedIngredients\u306B\u5FC5\u305A100%\u53CD\u6620\u3055\u305B\u3066\u304F\u3060\u3055\u3044\u3002\u52DD\u624B\u306B\u5225\u306E\u98DF\u6750\u306B\u5909\u3048\u305F\u308A\u7701\u7565\u3057\u3066\u306F\u3044\u3051\u307E\u305B\u3093\uFF08\u4F8B: \u5C71\u828B\u3001\u8C5A\u30D0\u30E9\u8089\u3001\u30AD\u30E3\u30D9\u30C4\u3001\u3053\u3093\u306B\u3083\u304F\u3001\u30AB\u30EC\u30FC\u30EB\u30FC\u7B49\uFF09\u3002
+2. \u8ABF\u5473\u6599\u306F\u3001\u30E6\u30FC\u30B6\u30FC\u304C\u6307\u5B9A\u3057\u305F\u5BB6\u306B\u3042\u308B\u8ABF\u5473\u6599\uFF08${preferences.staples && preferences.staples.length > 0 ? preferences.staples.join(", ") : "\u4E00\u822C\u7684\u306A\u57FA\u672C\u8ABF\u5473\u6599"}\uFF09\u306E\u307F\u3092\u6700\u512A\u5148\u30FB\u53B3\u5B88\u3067\u6D3B\u7528\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u30E6\u30FC\u30B6\u30FC\u304C\u6301\u3063\u3066\u3044\u306A\u3044\u8ABF\u5473\u6599\u3092\u5FC5\u9808\u6750\u6599\u306B\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002
+3. \u5FC5\u305A\u30105\u7A2E\u985E\u3011\u306E\u30EC\u30B7\u30D4\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\u914D\u5217\u3068\u3057\u3066\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+4. \u4EBA\u6570\uFF08\u4F55\u4EBA\u524D\uFF09\u306E\u8A08\u7B97\u3092\u6B63\u78BA\u306B\u884C\u3046\u305F\u3081\u3001\u98DF\u6750\u30FB\u8ABF\u5473\u6599\u306E\u300CbaseAmount\u300D\uFF08\u6570\u5024\u306E\u307F\uFF09\u3068\u300Cunit\u300D\uFF08\u5358\u4F4D\uFF09\u3092\u660E\u78BA\u306B\u5206\u3051\u3066\u5B9A\u7FA9\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u57FA\u6E96\u4EBA\u6570\u306F\u300CbaseServings: 2\u300D\uFF082\u4EBA\u524D\uFF09\u3068\u3057\u3066\u6570\u5024\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+5. 1\u4EBA\u524D\u3042\u305F\u308A\u306E\u30AB\u30ED\u30EA\u30FC\uFF08kcal\uFF09\u3001\u305F\u3093\u3071\u304F\u8CEA\uFF08g\uFF09\u3001\u8102\u8CEA\uFF08g\uFF09\u3001\u70AD\u6C34\u5316\u7269\uFF08g\uFF09\u3001\u98DF\u5869\u76F8\u5F53\u91CF\uFF08g\uFF09\u3092\u7BA1\u7406\u6804\u990A\u58EB\u306E\u8996\u70B9\u3067\u6B63\u78BA\u306B\u7B97\u51FA\u3057\u3066\u8A18\u8F09\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+6. \u8ABF\u7406\u624B\u9806\uFF08steps\uFF09\u306F\u521D\u5FC3\u8005\u3067\u3082\u308F\u304B\u308A\u3084\u3059\u304F\u3001\u706B\u52A0\u6E1B\u3084\u76EE\u5B89\u6642\u9593\u3092\u660E\u8A18\u3057\u3066\u304F\u3060\u3055\u3044\u3002\u716E\u8FBC\u307F\u3084\u84B8\u3057\u713C\u304D\u306E\u30BF\u30A4\u30DE\u30FC\u5206\u6570\u3082\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+7. \u3010\u5E83\u544A\u633F\u5165\u7528\u30A4\u30F3\u30C7\u30C3\u30AF\u30B9\u306E\u6307\u5B9A\uFF08ad_insertion_index\uFF09\u3011: \u30A2\u30D7\u30EA\u5074\u30675\u3064\u306E\u30EC\u30B7\u30D4\u306E\u300C3\u756A\u76EE\u30684\u756A\u76EE\u306E\u30EC\u30B7\u30D4\u306E\u9593\u300D\u306B\u30CD\u30A4\u30C6\u30A3\u30D6\u5E83\u544A\uFF08PR\uFF09\u3092\u52D5\u7684\u306B\u3001\u304B\u3064\u81EA\u7136\u306B\u633F\u5165\u3067\u304D\u308B\u3088\u3046\u3001\u51FA\u529B\u3059\u308BJSON\u306E\u30EB\u30FC\u30C8\u968E\u5C64\u306B\u5FC5\u305A "ad_insertion_index": 2\uFF080\u304B\u3089\u6570\u3048\u30663\u756A\u76EE\u306E\u8981\u7D20\u306E\u76F4\u5F8C\uFF09\u3092\u542B\u3081\u3066\u51FA\u529B\u3057\u3066\u304F\u3060\u3055\u3044\u3002`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3.7-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: RECIPE_RESPONSE_SCHEMA
+      }
+    });
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error("Gemini API\u304B\u3089\u7A7A\u306E\u5FDC\u7B54\u304C\u8FD4\u3055\u308C\u307E\u3057\u305F\u3002");
+    }
+    const parsedData = JSON.parse(responseText);
+    res.json(parsedData);
+  } catch (error) {
+    console.error("Error generating recipes with Gemini API:", error?.message || error);
+    const dynamicResult = generateSmartRecipes(req.body?.ingredients || [], req.body?.preferences || {});
+    res.json({
+      ...dynamicResult,
+      isOfflineMode: true,
+      analysisComment: `${dynamicResult.analysisComment}\uFF08\u203BAI\u9AD8\u901F\u63A8\u5968\u30E2\u30FC\u30C9\u3067\u751F\u6210\uFF09`
+    });
+  }
+});
+var syncSessions = /* @__PURE__ */ new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of syncSessions.entries()) {
+    if (now - session.createdAt > 30 * 60 * 1e3) {
+      syncSessions.delete(id);
+    }
+  }
+}, 10 * 60 * 1e3);
+app.post("/api/sync/create-session", (req, res) => {
+  const sessionId = "sync_" + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+  syncSessions.set(sessionId, {
+    id: sessionId,
+    createdAt: Date.now(),
+    status: "waiting"
+  });
+  res.json({ sessionId, status: "waiting" });
+});
+app.get("/api/sync/status/:sessionId", (req, res) => {
+  const { sessionId } = req.params;
+  const session = syncSessions.get(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: "\u30BB\u30C3\u30B7\u30E7\u30F3\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093\u3002\u671F\u9650\u5207\u308C\u306E\u53EF\u80FD\u6027\u304C\u3042\u308A\u307E\u3059\u3002" });
+  }
+  res.json({
+    status: session.status,
+    hasImage: !!session.imageData,
+    imageData: session.imageData,
+    mimeType: session.mimeType,
+    preferences: session.preferences
+  });
+});
+app.post("/api/sync/upload-photo", (req, res) => {
+  const { sessionId, imageBase64, mimeType = "image/jpeg", preferences = {} } = req.body;
+  if (!sessionId || !imageBase64) {
+    return res.status(400).json({ error: "sessionId \u3068 imageBase64 \u304C\u5FC5\u8981\u3067\u3059\u3002" });
+  }
+  const session = syncSessions.get(sessionId);
+  if (!session) {
+    syncSessions.set(sessionId, {
+      id: sessionId,
+      createdAt: Date.now(),
+      status: "uploaded",
+      imageData: imageBase64,
+      mimeType,
+      preferences
+    });
+    return res.json({ success: true, status: "uploaded" });
+  }
+  session.status = "uploaded";
+  session.imageData = imageBase64;
+  session.mimeType = mimeType;
+  session.preferences = preferences;
+  syncSessions.set(sessionId, session);
+  res.json({ success: true, status: "uploaded" });
+});
+app.post("/api/sync/connect", (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId && syncSessions.has(sessionId)) {
+    const s = syncSessions.get(sessionId);
+    if (s.status === "waiting") {
+      s.status = "connected";
+    }
+  }
+  res.json({ success: true });
+});
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", timestamp: Date.now() });
+});
+async function startServer() {
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await (0, import_vite.createServer)({
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === "true" ? false : void 0
+      },
+      appType: "spa"
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = import_path.default.join(process.cwd(), "dist");
+    app.use(import_express.default.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(import_path.default.join(distPath, "index.html"));
+    });
+  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+startServer();
+//# sourceMappingURL=server.cjs.map

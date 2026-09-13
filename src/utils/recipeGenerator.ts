@@ -1,5 +1,5 @@
 import { Recipe, AnalysisResult, DetectedIngredient } from "../types";
-import { extractColorFeaturesFromPixels, classifyFoodFromColorFeatures } from "./imageAnalyzer";
+import { analyzePixelsWithObjectIsolation } from "./imageAnalyzer";
 
 // Cross-platform helper to decode base64 to byte array in both Node.js and browser/Capacitor
 function decodeBase64Bytes(base64Data: string): Uint8Array {
@@ -19,15 +19,13 @@ function decodeBase64Bytes(base64Data: string): Uint8Array {
   }
 }
 
-// Detect likely ingredients from image buffer properties (color distribution, brightness, saturation)
+// Detect likely ingredients from image buffer properties
 export function detectIngredientsFromImageBuffer(base64Data: string): string[] {
   try {
     const buffer = decodeBase64Bytes(base64Data);
     if (buffer.length < 200) return ["人参", "大根", "豚肉"];
 
-    const features = extractColorFeaturesFromPixels(buffer as any);
-    const classification = classifyFoodFromColorFeatures(features);
-
+    const classification = analyzePixelsWithObjectIsolation(buffer as any, 64, 64);
     if (classification.candidates && classification.candidates.length > 0) {
       return classification.candidates;
     }

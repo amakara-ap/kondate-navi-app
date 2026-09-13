@@ -1,19 +1,281 @@
-// Pure client-side canvas-based and RGB feature-based image analyzer for iOS & Web
-
-export interface ImageColorFeatures {
-  avgR: number;
-  avgG: number;
-  avgB: number;
-  hue: number;        // 0 - 360
-  saturation: number; // 0 - 1
-  brightness: number; // 0 - 255
-}
+// High-precision foreground-isolating color and hue analyzer for vegetables and ingredients
+// Robust against kitchen countertops, chopping boards, plastic wrap, and ambient lighting.
 
 export interface DetectedFoodResult {
   primaryName: string;
   category: "vegetable" | "meat" | "fish" | "dairy_egg" | "other";
   candidates: string[];
   confidence: "high" | "medium" | "low";
+  debugInfo?: string;
+}
+
+interface PixelHsv {
+  r: number;
+  g: number;
+  b: number;
+  h: number; // 0 - 360
+  s: number; // 0 - 1
+  v: number; // 0 - 255
+  isCenter: boolean;
+}
+
+function rgbToHsv(r: number, g: number, b: number): { h: number; s: number; v: number } {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const s = max === 0 ? 0 : d / max;
+  const v = (r + g + b) / 3;
+
+  let h = 0;
+  if (d > 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  }
+  return { h, s, v };
+}
+
+/**
+ * Analyze an array of RGBA pixels with foreground object isolation.
+ * Specifically separates the vegetable/subject from background surfaces
+ * (cutting boards, marble/granite countertops, plastic bags).
+ */
+export function analyzePixelsWithObjectIsolation(
+  pixels: Uint8ClampedArray | number[],
+  width: number,
+  height: number
+): DetectedFoodResult {
+  let greenCount = 0;
+  let darkGreenCount = 0;   // ピーマン, ほうれん草, ブロッコリー, きゅうり
+  let lightGreenCount = 0;  // キャベツ, 白菜の葉, レタス
+  let orangeCount = 0;      // 人参
+  let redCount = 0;         // トマト, パプリカ
+  let purpleCount = 0;      // なす
+  let daikonWhiteCount = 0; // 大根, 豆腐, もやし
+  let yellowCount = 0;      // かぼちゃ, とうもろこし
+  let onionCount = 0;       // 玉ねぎ（黄褐色）
+  let totalAnalyzed = 0;
+
+  // We inspect with emphasis on the central 70% of the image (where the photographed ingredient rests)
+  const marginX = Math.floor(width * 0.12);
+  const marginY = Math.floor(height * 0.12);
+
+  const centerXMin = Math.floor(width * 0.25);
+  const centerXMax = Math.floor(width * 0.75);
+  const centerYMin = Math.floor(height * 0.25);
+  const centerYMax = Math.floor(height * 0.75);
+
+  for (let y = marginY; y < height - marginY; y++) {
+    for (let x = marginX; x < width - marginX; x++) {
+      const idx = (y * width + x) * 4;
+      const r = pixels[idx];
+      const g = pixels[idx + 1];
+      const b = pixels[idx + 2];
+      const a = pixels[idx + 3] !== undefined ? pixels[idx + 3] : 255;
+      if (a < 50) continue;
+
+      const isCenter = x >= centerXMin && x <= centerXMax && y >= centerYMin && y <= centerYMax;
+      // Center pixels are weighted twice as heavily as periphery
+      const weight = isCenter ? 2 : 1;
+      totalAnalyzed += weight;
+
+      const { h, s, v } = rgbToHsv(r, g, b);
+
+      // 1. Green vegetables (ピーマン / キャベツ / ほうれん草 / きゅうり)
+      // Green is rare in standard countertops and tables!
+      const isGreenHue = (h >= 65 && h <= 175 && s >= 0.14) || (g > r * 1.14 && g > b * 1.10 && s >= 0.12);
+      if (isGreenHue) {
+        greenCount += weight;
+        if (v < 130 || g < 140) {
+          darkGreenCount += weight;
+        } else {
+          lightGreenCount += weight;
+        }
+        continue;
+      }
+
+      // 2. Orange vegetables (人参):
+      // Vivid orange: Hue 12° to 36°, high saturation (s >= 0.32), R > G * 1.20, B is small (b < 125)
+      // Countertops have low saturation (s < 0.22) or high B, so they are not counted as carrot!
+      const isCarrotOrange = h >= 12 && h <= 36 && s >= 0.32 && r > g * 1.20 && b < 125;
+      if (isCarrotOrange) {
+        orangeCount += weight;
+        continue;
+      }
+
+      // 3. Red vegetables (トマト / パプリカ赤):
+      const isTomatoRed = (h >= 345 || h <= 12) && s >= 0.35 && r > 120 && r > g * 1.25;
+      if (isTomatoRed) {
+        redCount += weight;
+        continue;
+      }
+
+      // 4. Purple vegetables (なす):
+      const isEggplantPurple = ((h >= 240 && h <= 335 && s >= 0.14) || (b > g && r > g && b > 40)) && v < 120;
+      if (isEggplantPurple) {
+        purpleCount += weight;
+        continue;
+      }
+
+      // 5. Daikon (大根) / Tofu (豆腐) / Bean sprouts (もやし):
+      // High brightness, very low saturation (clean white or very pale white-green in wrap)
+      // Note: Daikon is uniquely white across the whole central body
+      const isDaikonWhite = v >= 160 && s < 0.19 && r > 150 && g > 150 && b > 140;
+      if (isDaikonWhite) {
+        daikonWhiteCount += weight;
+        continue;
+      }
+
+      // 6. Pumpkin (かぼちゃ):
+      const isPumpkinYellow = h >= 36 && h <= 62 && s >= 0.50 && r > 150 && g > 120;
+      if (isPumpkinYellow) {
+        yellowCount += weight;
+        continue;
+      }
+
+      // 7. Onion (玉ねぎ):
+      // Golden yellow/tan skin, hue 26° to 52°, moderate saturation (0.24 to 0.48), moderate brightness
+      const isOnion = h >= 26 && h <= 52 && s >= 0.24 && s <= 0.48 && r > 140 && g > 105 && v < 190;
+      if (isOnion) {
+        onionCount += weight;
+        continue;
+      }
+    }
+  }
+
+  if (totalAnalyzed === 0) totalAnalyzed = 1;
+
+  const darkGreenRatio = darkGreenCount / totalAnalyzed;
+  const lightGreenRatio = lightGreenCount / totalAnalyzed;
+  const greenRatio = greenCount / totalAnalyzed;
+  const orangeRatio = orangeCount / totalAnalyzed;
+  const redRatio = redCount / totalAnalyzed;
+  const purpleRatio = purpleCount / totalAnalyzed;
+  const daikonWhiteRatio = daikonWhiteCount / totalAnalyzed;
+  const yellowRatio = yellowCount / totalAnalyzed;
+  const onionRatio = onionCount / totalAnalyzed;
+
+  // PRIORITY CLASSIFICATION based on distinct subject ratios
+
+  // 1. Carrot (人参):
+  // Even a slice or elongated carrot typically covers 8%+ of the sampled area with vivid orange
+  if (orangeRatio >= 0.08 && orangeRatio > greenRatio && orangeRatio > redRatio) {
+    return {
+      primaryName: "人参",
+      category: "vegetable",
+      candidates: ["人参", "玉ねぎ", "豚肉"],
+      confidence: "high",
+      debugInfo: `Orange ratio: ${(orangeRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 2. Green pepper (ピーマン):
+  // Dark glossy green covering 8%+ of the area
+  if (darkGreenRatio >= 0.08 || (greenRatio >= 0.10 && darkGreenRatio >= lightGreenRatio)) {
+    return {
+      primaryName: "ピーマン",
+      category: "vegetable",
+      candidates: ["ピーマン", "豚バラ肉", "玉ねぎ"],
+      confidence: "high",
+      debugInfo: `Dark green ratio: ${(darkGreenRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 3. Light green (キャベツ / 白菜 / レタス):
+  if (lightGreenRatio >= 0.12 && lightGreenRatio > darkGreenRatio) {
+    return {
+      primaryName: "キャベツ",
+      category: "vegetable",
+      candidates: ["キャベツ", "豚バラ肉", "人参"],
+      confidence: "high",
+      debugInfo: `Light green ratio: ${(lightGreenRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 4. Tomato (トマト):
+  if (redRatio >= 0.08) {
+    return {
+      primaryName: "トマト",
+      category: "vegetable",
+      candidates: ["トマト", "玉ねぎ", "豚肉"],
+      confidence: "high",
+      debugInfo: `Red ratio: ${(redRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 5. Eggplant (なす):
+  if (purpleRatio >= 0.07) {
+    return {
+      primaryName: "なす",
+      category: "vegetable",
+      candidates: ["なす", "豚肉", "ピーマン"],
+      confidence: "high",
+      debugInfo: `Purple ratio: ${(purpleRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 6. Daikon (大根) / Tofu:
+  // Wrapped or unwrapped daikon is predominantly white/cream covering a substantial body
+  if (daikonWhiteRatio >= 0.28 && orangeRatio < 0.05 && greenRatio < 0.06) {
+    return {
+      primaryName: "大根",
+      category: "vegetable",
+      candidates: ["大根", "豚肉", "長ネギ"],
+      confidence: "high",
+      debugInfo: `White ratio: ${(daikonWhiteRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 7. Pumpkin (かぼちゃ):
+  if (yellowRatio >= 0.10) {
+    return {
+      primaryName: "かぼちゃ",
+      category: "vegetable",
+      candidates: ["かぼちゃ", "豚肉", "玉ねぎ"],
+      confidence: "high",
+      debugInfo: `Yellow ratio: ${(yellowRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // 8. Onion (玉ねぎ):
+  if (onionRatio >= 0.15) {
+    return {
+      primaryName: "玉ねぎ",
+      category: "vegetable",
+      candidates: ["玉ねぎ", "じゃがいも", "豚肉"],
+      confidence: "medium",
+      debugInfo: `Onion ratio: ${(onionRatio * 100).toFixed(1)}%`,
+    };
+  }
+
+  // If nothing else dominated but some green exists:
+  if (greenRatio >= 0.05) {
+    return {
+      primaryName: "ピーマン",
+      category: "vegetable",
+      candidates: ["ピーマン", "キャベツ", "豚肉"],
+      confidence: "medium",
+    };
+  }
+
+  // If white exists:
+  if (daikonWhiteRatio >= 0.18) {
+    return {
+      primaryName: "大根",
+      category: "vegetable",
+      candidates: ["大根", "豚肉", "豆腐"],
+      confidence: "medium",
+    };
+  }
+
+  return {
+    primaryName: "キャベツ",
+    category: "vegetable",
+    candidates: ["キャベツ", "人参", "玉ねぎ"],
+    confidence: "low",
+  };
 }
 
 /**
@@ -37,229 +299,14 @@ function decodeBase64ToBytes(base64Data: string): Uint8Array {
 }
 
 /**
- * Extract color features from real canvas pixel data or downsampled image buffer
- */
-export function extractColorFeaturesFromPixels(pixels: Uint8ClampedArray | number[]): ImageColorFeatures {
-  let totalR = 0;
-  let totalG = 0;
-  let totalB = 0;
-  let count = 0;
-
-  // Pixel step to sample around 1000-2000 points
-  const step = Math.max(4, Math.floor(pixels.length / 4000) * 4);
-  for (let i = 0; i < pixels.length - 3; i += step) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
-    const a = pixels[i + 3] !== undefined ? pixels[i + 3] : 255;
-    // Exclude transparent pixels
-    if (a > 50) {
-      totalR += r;
-      totalG += g;
-      totalB += b;
-      count++;
-    }
-  }
-
-  if (count === 0) {
-    return { avgR: 128, avgG: 128, avgB: 128, hue: 0, saturation: 0, brightness: 128 };
-  }
-
-  const avgR = totalR / count;
-  const avgG = totalG / count;
-  const avgB = totalB / count;
-  const brightness = (avgR + avgG + avgB) / 3;
-
-  const max = Math.max(avgR, avgG, avgB);
-  const min = Math.min(avgR, avgG, avgB);
-  const delta = max - min;
-  const saturation = max === 0 ? 0 : delta / max;
-
-  let hue = 0;
-  if (delta > 0) {
-    if (max === avgR) {
-      hue = ((avgG - avgB) / delta) % 6;
-    } else if (max === avgG) {
-      hue = (avgB - avgR) / delta + 2;
-    } else {
-      hue = (avgR - avgG) / delta + 4;
-    }
-    hue = Math.round(hue * 60);
-    if (hue < 0) hue += 360;
-  }
-
-  return { avgR, avgG, avgB, hue, saturation, brightness };
-}
-
-/**
- * Classify vegetable or food from optical color & hue characteristics
- */
-export function classifyFoodFromColorFeatures(features: ImageColorFeatures): DetectedFoodResult {
-  const { avgR, avgG, avgB, hue, saturation, brightness } = features;
-
-  // 1. Daikon (大根) / Tofu (豆腐) / White cabbage / Bean sprouts:
-  // High brightness, very low saturation (almost pure white/cream)
-  if (brightness > 165 && saturation < 0.20) {
-    return {
-      primaryName: "大根",
-      category: "vegetable",
-      candidates: ["大根", "絹ごし豆腐", "白菜", "もやし"],
-      confidence: "high",
-    };
-  }
-
-  // 2. Green vegetables (ピーマン, キャベツ, ほうれん草, ブロッコリー, きゅうり, レタス):
-  // Green dominant: Hue in green spectrum (65° to 175°) OR green exceeds red and blue significantly
-  if ((hue >= 65 && hue <= 175 && saturation >= 0.12) || (avgG > avgR * 1.12 && avgG > avgB * 1.10)) {
-    // Dark/deep green -> ピーマン, ほうれん草, ブロッコリー, きゅうり
-    if (brightness < 125 || avgG < 140) {
-      return {
-        primaryName: "ピーマン",
-        category: "vegetable",
-        candidates: ["ピーマン", "ほうれん草", "ブロッコリー", "きゅうり"],
-        confidence: "high",
-      };
-    } else {
-      // Light / yellow-green -> キャベツ, レタス, 小松菜
-      return {
-        primaryName: "キャベツ",
-        category: "vegetable",
-        candidates: ["キャベツ", "レタス", "白菜", "小松菜"],
-        confidence: "high",
-      };
-    }
-  }
-
-  // 3. Eggplant (なす):
-  // Deep purple/violet: Hue 240°-330° or low brightness with Blue/Red > Green
-  if ((hue >= 240 && hue <= 335 && saturation > 0.15) || (brightness < 90 && avgB > avgG && avgR > avgG)) {
-    return {
-      primaryName: "なす",
-      category: "vegetable",
-      candidates: ["なす", "紫キャベツ", "黒豆"],
-      confidence: "high",
-    };
-  }
-
-  // 4. Tomato (トマト):
-  // Pure vivid red: Hue 345°-360° or 0°-16°, high saturation, strong red channel
-  if ((hue >= 345 || hue <= 16) && saturation > 0.38 && avgR > 125) {
-    return {
-      primaryName: "トマト",
-      category: "vegetable",
-      candidates: ["トマト", "ミニトマト", "パプリカ（赤）"],
-      confidence: "high",
-    };
-  }
-
-  // 5. Carrot (人参):
-  // Bright orange: Hue 17° to 38°, high saturation (>= 0.38), R substantially higher than G and B, low Blue
-  if (hue >= 17 && hue <= 38 && saturation >= 0.38 && avgR > avgG * 1.25 && avgB < 115) {
-    return {
-      primaryName: "人参",
-      category: "vegetable",
-      candidates: ["人参", "パプリカ（橙）", "かぼちゃ"],
-      confidence: "high",
-    };
-  }
-
-  // 6. Pumpkin (かぼちゃ) / Corn / Lemon / Egg yolk:
-  // Golden yellow-orange: Hue 38° to 62°, high saturation (> 0.55), high R and G
-  if (hue >= 38 && hue <= 62 && saturation > 0.55 && avgR > 150 && avgG > 125) {
-    return {
-      primaryName: "かぼちゃ",
-      category: "vegetable",
-      candidates: ["かぼちゃ", "とうもろこし", "卵"],
-      confidence: "high",
-    };
-  }
-
-  // 7. Meat (豚肉・牛肉・鶏肉):
-  // Pinkish red or reddish brown, moderate brightness, Hue 340°-25°
-  if ((hue >= 340 || hue <= 25) && avgR > avgG * 1.15 && avgR > avgB * 1.15 && brightness < 155) {
-    return {
-      primaryName: "豚バラ肉",
-      category: "meat",
-      candidates: ["豚バラ肉", "豚ロース", "牛肉", "鶏もも肉"],
-      confidence: "high",
-    };
-  }
-
-  // 8. Salmon / Fresh Fish (鮭・魚介):
-  // Salmon pink / coral: Hue 10°-30°, moderate saturation, R > 130
-  if (hue >= 10 && hue <= 30 && avgR > 130 && avgG > 75 && avgB < 110 && saturation > 0.30) {
-    return {
-      primaryName: "鮭・魚",
-      category: "fish",
-      candidates: ["鮭・魚", "たら", "エビ"],
-      confidence: "medium",
-    };
-  }
-
-  // 9. Onion (玉ねぎ):
-  // Specifically golden-tan skin or translucent pale yellow-orange.
-  // Hue 25°-55°, moderate saturation (0.20 - 0.48), high brightness (120 - 200).
-  if (hue >= 25 && hue <= 55 && saturation >= 0.20 && saturation <= 0.48 && brightness >= 120 && brightness <= 205 && avgR > 135) {
-    return {
-      primaryName: "玉ねぎ",
-      category: "vegetable",
-      candidates: ["玉ねぎ", "じゃがいも", "長ネギ"],
-      confidence: "medium",
-    };
-  }
-
-  // 10. Potato (じゃがいも) / Sweet potato / Burdock (ごぼう):
-  // Earthy tan/brown/yellow-gray, Hue 20°-55°, lower saturation (0.12 - 0.38), brightness 80 - 150
-  if (hue >= 20 && hue <= 55 && saturation >= 0.12 && saturation <= 0.38 && brightness >= 80 && brightness < 155) {
-    return {
-      primaryName: "じゃがいも",
-      category: "vegetable",
-      candidates: ["じゃがいも", "さつまいも", "ごぼう", "れんこん"],
-      confidence: "medium",
-    };
-  }
-
-  // 11. Mushrooms (きのこ):
-  // Dark/medium earthy brown or gray-brown, low saturation, low brightness
-  if (brightness < 115 && saturation < 0.25) {
-    return {
-      primaryName: "きのこ",
-      category: "vegetable",
-      candidates: ["きのこ", "しめじ", "エリンギ", "椎茸"],
-      confidence: "medium",
-    };
-  }
-
-  // 12. Konjac / Black/Grey food (板こんにゃく・しらたき):
-  if (brightness < 100 && saturation < 0.12) {
-    return {
-      primaryName: "板こんにゃく",
-      category: "other",
-      candidates: ["板こんにゃく", "しらたき", "ひじき"],
-      confidence: "medium",
-    };
-  }
-
-  // Fallback defaults to fresh cabbage / versatile vegetable
-  return {
-    primaryName: "キャベツ",
-    category: "vegetable",
-    candidates: ["キャベツ", "人参", "玉ねぎ", "豚肉"],
-    confidence: "low",
-  };
-}
-
-/**
  * Asynchronously analyze an image (DataURL or Image element) using Canvas in browser/iOS WebView.
- * This guarantees real optical pixel decoding rather than raw compressed JPEG entropy bytes!
+ * Loads image into 64x64 canvas, extracts true RGB pixels, and runs foreground isolation.
  */
 export function analyzeImagePixelsClientSide(imageDataUrl: string): Promise<DetectedFoodResult> {
   return new Promise((resolve) => {
-    // If not in a browser environment with Image and document
     if (typeof window === "undefined" || typeof document === "undefined") {
       const bytes = decodeBase64ToBytes(imageDataUrl);
-      const features = extractColorFeaturesFromPixels(bytes as any);
-      resolve(classifyFoodFromColorFeatures(features));
+      resolve(analyzePixelsWithObjectIsolation(bytes as any, 64, 64));
       return;
     }
 
@@ -268,7 +315,6 @@ export function analyzeImagePixelsClientSide(imageDataUrl: string): Promise<Dete
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        // Sample at 64x64 thumbnail for instant processing
         const width = 64;
         const height = 64;
         canvas.width = width;
@@ -281,22 +327,19 @@ export function analyzeImagePixelsClientSide(imageDataUrl: string): Promise<Dete
 
         ctx.drawImage(img, 0, 0, width, height);
         const imgData = ctx.getImageData(0, 0, width, height);
-        const features = extractColorFeaturesFromPixels(imgData.data);
-        const result = classifyFoodFromColorFeatures(features);
+        const result = analyzePixelsWithObjectIsolation(imgData.data, width, height);
         resolve(result);
       } catch (err) {
         console.warn("Client-side canvas pixel sampling error:", err);
         const bytes = decodeBase64ToBytes(imageDataUrl);
-        const features = extractColorFeaturesFromPixels(bytes as any);
-        resolve(classifyFoodFromColorFeatures(features));
+        resolve(analyzePixelsWithObjectIsolation(bytes as any, 64, 64));
       }
     };
 
     img.onerror = (e) => {
       console.warn("Image load error for pixel analysis:", e);
       const bytes = decodeBase64ToBytes(imageDataUrl);
-      const features = extractColorFeaturesFromPixels(bytes as any);
-      resolve(classifyFoodFromColorFeatures(features));
+      resolve(analyzePixelsWithObjectIsolation(bytes as any, 64, 64));
     };
 
     img.src = imageDataUrl;
