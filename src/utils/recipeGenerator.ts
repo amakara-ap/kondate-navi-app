@@ -22,7 +22,7 @@ function decodeBase64Bytes(base64Data: string): Uint8Array {
 export function detectIngredientsFromImageBuffer(base64Data: string): string[] {
   try {
     const buffer = decodeBase64Bytes(base64Data);
-    if (buffer.length < 500) return ["卵", "たまご"];
+    if (buffer.length < 500) return ["人参", "大根", "豚肉"];
 
     let totalR = 0;
     let totalG = 0;
@@ -40,7 +40,7 @@ export function detectIngredientsFromImageBuffer(base64Data: string): string[] {
       sampleCount++;
     }
 
-    if (sampleCount === 0) return ["卵", "たまご"];
+    if (sampleCount === 0) return ["人参", "大根", "豚肉"];
 
     const avgR = totalR / sampleCount;
     const avgG = totalG / sampleCount;
@@ -52,28 +52,57 @@ export function detectIngredientsFromImageBuffer(base64Data: string): string[] {
     const delta = max - min;
     const saturation = max === 0 ? 0 : delta / max;
 
-    if (brightness > 130 && saturation < 0.35) {
-      return ["卵", "たまご"];
+    // 1. Carrot (人参): High red, medium green (orange/vermilion), low blue, prominent saturation
+    // Orange has R >> B, and R > G * 1.25, with G substantial (e.g. R 170+, G 90-160, B < 80)
+    if (avgR > 130 && avgR > avgG * 1.2 && avgG > avgB * 1.3 && avgB < 110) {
+      return ["人参", "玉ねぎ", "豚肉"];
     }
-    if (avgG > avgR * 1.1 && avgG > avgB * 1.1) {
-      return ["キャベツ", "豚肉"];
+
+    // 2. Tomato (トマト): Strong red, low green, low blue
+    if (avgR > 140 && avgR > avgG * 1.5 && avgR > avgB * 1.5) {
+      return ["トマト", "玉ねぎ", "豚肉"];
     }
-    if (avgR > avgG * 1.25 && avgR > avgB * 1.25) {
-      if (avgR > 160 && avgG < 110) {
-        return ["トマト", "卵"];
-      }
-      return ["豚バラ肉", "キャベツ"];
+
+    // 3. Daikon / Tofu / White vegetables (大根 / 豆腐 / 白菜):
+    // High brightness, very low saturation (delta is tiny, R, G, B all high and nearly equal)
+    if (brightness > 160 && saturation < 0.18) {
+      return ["大根", "豚肉", "長ネギ"];
     }
-    if (avgR > 140 && avgG > 90 && avgG < avgR && avgB < 90) {
-      return ["鮭", "しめじ"];
+
+    // 4. Green vegetables (キャベツ, ピーマン, ほうれん草, ブロッコリー): Green dominant
+    if (avgG > avgR * 1.08 && avgG > avgB * 1.08) {
+      return ["キャベツ", "豚バラ肉", "人参"];
     }
-    if (brightness > 120) {
-      return ["卵", "玉ねぎ"];
+
+    // 5. Pumpkin / Deep yellow (かぼちゃ / 卵黄): High R and G, low B
+    if (avgR > 140 && avgG > 120 && avgB < 90 && saturation > 0.35) {
+      return ["かぼちゃ", "人参", "豚肉"];
     }
-    return ["豚肉", "キャベツ"];
+
+    // 6. Salmon / Fresh fish (生鮭 / 魚): moderate red-orange
+    if (avgR > 130 && avgG > 80 && avgB < 100 && avgR > avgB * 1.3) {
+      return ["鮭", "しめじ", "玉ねぎ"];
+    }
+
+    // 7. Meat (豚肉・牛肉): Reddish with moderate brightness
+    if (avgR > avgG * 1.15 && avgR > avgB * 1.15 && brightness < 150) {
+      return ["豚バラ肉", "キャベツ", "玉ねぎ"];
+    }
+
+    // 8. Moderate brightness neutral (neutral root vegetable or onion)
+    if (brightness > 120 && saturation < 0.25) {
+      return ["玉ねぎ", "じゃがいも", "豚肉"];
+    }
+
+    // 9. Moderate white-ish (can be daikon, tofu, cabbage or egg)
+    if (brightness > 140 && saturation < 0.28) {
+      return ["大根", "キャベツ", "豚肉"];
+    }
+
+    return ["豚肉", "人参", "キャベツ"];
   } catch (e) {
     console.warn("Failed to sample image buffer:", e);
-    return ["卵", "たまご"];
+    return ["人参", "大根", "豚肉"];
   }
 }
 

@@ -745,12 +745,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                   </button>
                 </div>
 
-                {/* Packaging & Label OCR Assistance Notice */}
-                <div className="max-w-xl mx-auto bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3.5 flex items-start gap-2.5">
-                  <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                  <div className="text-[11px] leading-relaxed text-amber-950">
-                    <span className="font-bold block text-amber-900 mb-0.5">🏷️ パッケージの商品名シール・印字文字も自動認識！</span>
-                    生肉パック・魚の切り身・カット野菜の値札シールや、加工肉（ハム・ベーコン・ウインナー・サラダチキン）、茹で麺（そば・うどん・焼きそば・ラーメン）、油揚げ（うすあげ・きざみあげ・あつあげ）などのパッケージをそのまま撮影してもAIが商品名を正確に読み取ります。
+                {/* Packaging, Raw Vegetable & Label OCR Assistance Notice */}
+                <div className="max-w-xl mx-auto bg-gradient-to-r from-amber-50/90 via-emerald-50/90 to-teal-50/90 border border-emerald-200/80 rounded-2xl p-3.5 flex items-start gap-2.5 shadow-2xs">
+                  <Sparkles className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-relaxed text-stone-800">
+                    <span className="font-bold block text-emerald-900 mb-0.5">🥕 丸ごと野菜・生鮮食材もGoogleレンズのように自動認識！</span>
+                    人参（ニンジン）・大根（ダイコン）・キャベツ・トマトなどの生野菜の形や色をそのまま視覚的に判別。もちろんスーパーの値札シールや加工食品（ウインナー・こんにゃく・豆腐・茹で麺）の文字も高精度に読み取ります。
                   </div>
                 </div>
               </div>
@@ -1035,11 +1035,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
             <div className="space-y-1.5">
               <p className="text-[11px] text-stone-600 font-medium leading-relaxed">
-                ※ 毛筆体やデザイン書体もAIが自動認識しました。別の食材に修正・変更したい場合は下のボタンで1タップ切り替え可能です。
+                ※ 野菜そのものの外見やパッケージの文字をAIが自動認識しました。別の食材に修正・変更したい場合は下のボタンで1タップ切り替え可能です。
               </p>
               
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {[
+                  { key: "人参", label: "🥕 人参（にんじん）" },
+                  { key: "大根", label: "🥢 大根（だいこん）" },
+                  { key: "キャベツ", label: "🥬 キャベツ" },
+                  { key: "トマト", label: "🍅 トマト" },
+                  { key: "玉ねぎ", label: "🧅 玉ねぎ" },
+                  { key: "じゃがいも", label: "🥔 じゃがいも" },
                   { key: "板こんにゃく", label: "🟫 板こんにゃく" },
                   { key: "白滝（しらたき）", label: "🍜 しらたき・糸こん" },
                   { key: "あらびきウインナー", label: "🌭 ウインナー・ハム" },
@@ -1053,7 +1059,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                   { key: "鶏むね肉", label: "🍗 鶏むね肉" },
                   { key: "牛肉", label: "🥩 牛肉" },
                   { key: "鮭・魚", label: "🐟 魚介・鮭" },
-                  { key: "キャベツ", label: "🥬 キャベツ" },
                   { key: "きのこ", label: "🍄 きのこ" },
                   { key: "卵", label: "🥚 卵" },
                 ].map((item) => (
