@@ -25,6 +25,7 @@ import {
 import { SAMPLE_PRESETS, PANTRY_STAPLES, SampleIngredientPreset } from "../data/sampleImages";
 import { QRCodeSVG } from "qrcode.react";
 import { detectIngredientsFromImageBuffer } from "../utils/recipeGenerator";
+import { analyzeImagePixelsClientSide } from "../utils/imageAnalyzer";
 
 export interface IngredientCategoryGroup {
   id: string;
@@ -282,13 +283,27 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       setIsQuickDetecting(false);
     }
 
-    // On-device heuristic detection fallback
+    // On-device accurate optical/color heuristic detection fallback
     try {
+      const opticalResult = await analyzeImagePixelsClientSide(imageBase64);
+      if (opticalResult && opticalResult.primaryName) {
+        setDetectedIngredientTag((prev) => (prev && prev !== "食材写真" ? prev : opticalResult.primaryName));
+        setDetectedOcrInfo({
+          detectedName: opticalResult.primaryName,
+          ocrText: `色相・形状解析により「${opticalResult.primaryName}」を認識しました`,
+          confidence: opticalResult.confidence,
+          allDetected: opticalResult.candidates,
+        });
+        return;
+      }
+
       const guesses = detectIngredientsFromImageBuffer(imageBase64);
       if (guesses && guesses.length > 0) {
         setDetectedIngredientTag((prev) => (prev && prev !== "食材写真" ? prev : guesses[0]));
       }
-    } catch {}
+    } catch (err) {
+      console.warn("Optical analysis fallback error:", err);
+    }
   };
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1042,10 +1057,13 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                 {[
                   { key: "人参", label: "🥕 人参（にんじん）" },
                   { key: "大根", label: "🥢 大根（だいこん）" },
+                  { key: "ピーマン", label: "🫑 ピーマン" },
                   { key: "キャベツ", label: "🥬 キャベツ" },
                   { key: "トマト", label: "🍅 トマト" },
                   { key: "玉ねぎ", label: "🧅 玉ねぎ" },
                   { key: "じゃがいも", label: "🥔 じゃがいも" },
+                  { key: "なす", label: "🍆 なす" },
+                  { key: "かぼちゃ", label: "🎃 かぼちゃ" },
                   { key: "板こんにゃく", label: "🟫 板こんにゃく" },
                   { key: "白滝（しらたき）", label: "🍜 しらたき・糸こん" },
                   { key: "あらびきウインナー", label: "🌭 ウインナー・ハム" },

@@ -1,4 +1,5 @@
 import { Recipe, AnalysisResult, DetectedIngredient } from "../types";
+import { extractColorFeaturesFromPixels, classifyFoodFromColorFeatures } from "./imageAnalyzer";
 
 // Cross-platform helper to decode base64 to byte array in both Node.js and browser/Capacitor
 function decodeBase64Bytes(base64Data: string): Uint8Array {
@@ -22,84 +23,15 @@ function decodeBase64Bytes(base64Data: string): Uint8Array {
 export function detectIngredientsFromImageBuffer(base64Data: string): string[] {
   try {
     const buffer = decodeBase64Bytes(base64Data);
-    if (buffer.length < 500) return ["人参", "大根", "豚肉"];
+    if (buffer.length < 200) return ["人参", "大根", "豚肉"];
 
-    let totalR = 0;
-    let totalG = 0;
-    let totalB = 0;
-    let sampleCount = 0;
+    const features = extractColorFeaturesFromPixels(buffer as any);
+    const classification = classifyFoodFromColorFeatures(features);
 
-    const step = Math.max(1, Math.floor(buffer.length / 2000));
-    for (let i = 100; i < buffer.length - 3; i += step) {
-      const r = buffer[i];
-      const g = buffer[i + 1];
-      const b = buffer[i + 2];
-      totalR += r;
-      totalG += g;
-      totalB += b;
-      sampleCount++;
+    if (classification.candidates && classification.candidates.length > 0) {
+      return classification.candidates;
     }
-
-    if (sampleCount === 0) return ["人参", "大根", "豚肉"];
-
-    const avgR = totalR / sampleCount;
-    const avgG = totalG / sampleCount;
-    const avgB = totalB / sampleCount;
-    const brightness = (avgR + avgG + avgB) / 3;
-
-    const max = Math.max(avgR, avgG, avgB);
-    const min = Math.min(avgR, avgG, avgB);
-    const delta = max - min;
-    const saturation = max === 0 ? 0 : delta / max;
-
-    // 1. Carrot (人参): High red, medium green (orange/vermilion), low blue, prominent saturation
-    // Orange has R >> B, and R > G * 1.25, with G substantial (e.g. R 170+, G 90-160, B < 80)
-    if (avgR > 130 && avgR > avgG * 1.2 && avgG > avgB * 1.3 && avgB < 110) {
-      return ["人参", "玉ねぎ", "豚肉"];
-    }
-
-    // 2. Tomato (トマト): Strong red, low green, low blue
-    if (avgR > 140 && avgR > avgG * 1.5 && avgR > avgB * 1.5) {
-      return ["トマト", "玉ねぎ", "豚肉"];
-    }
-
-    // 3. Daikon / Tofu / White vegetables (大根 / 豆腐 / 白菜):
-    // High brightness, very low saturation (delta is tiny, R, G, B all high and nearly equal)
-    if (brightness > 160 && saturation < 0.18) {
-      return ["大根", "豚肉", "長ネギ"];
-    }
-
-    // 4. Green vegetables (キャベツ, ピーマン, ほうれん草, ブロッコリー): Green dominant
-    if (avgG > avgR * 1.08 && avgG > avgB * 1.08) {
-      return ["キャベツ", "豚バラ肉", "人参"];
-    }
-
-    // 5. Pumpkin / Deep yellow (かぼちゃ / 卵黄): High R and G, low B
-    if (avgR > 140 && avgG > 120 && avgB < 90 && saturation > 0.35) {
-      return ["かぼちゃ", "人参", "豚肉"];
-    }
-
-    // 6. Salmon / Fresh fish (生鮭 / 魚): moderate red-orange
-    if (avgR > 130 && avgG > 80 && avgB < 100 && avgR > avgB * 1.3) {
-      return ["鮭", "しめじ", "玉ねぎ"];
-    }
-
-    // 7. Meat (豚肉・牛肉): Reddish with moderate brightness
-    if (avgR > avgG * 1.15 && avgR > avgB * 1.15 && brightness < 150) {
-      return ["豚バラ肉", "キャベツ", "玉ねぎ"];
-    }
-
-    // 8. Moderate brightness neutral (neutral root vegetable or onion)
-    if (brightness > 120 && saturation < 0.25) {
-      return ["玉ねぎ", "じゃがいも", "豚肉"];
-    }
-
-    // 9. Moderate white-ish (can be daikon, tofu, cabbage or egg)
-    if (brightness > 140 && saturation < 0.28) {
-      return ["大根", "キャベツ", "豚肉"];
-    }
-
-    return ["豚肉", "人参", "キャベツ"];
+    return [classification.primaryName, "豚肉", "キャベツ"];
   } catch (e) {
     console.warn("Failed to sample image buffer:", e);
     return ["人参", "大根", "豚肉"];
@@ -358,9 +290,12 @@ export function generateSmartRecipes(
   const hasEgg = /卵|たまご/.test(searchStr);
   const hasTofu = /豆腐|とうふ|厚揚げ|納豆/.test(searchStr);
 
-  const mainMeatOrProtein = allInputs.find((i) => categorizeIngredient(i) === "meat" || categorizeIngredient(i) === "fish") || allInputs[0];
-  const primaryVeg = allInputs.find((i) => categorizeIngredient(i) === "vegetable") || (allInputs[1] || "キャベツ");
-  const otherIngredients = allInputs.filter((i) => i !== mainMeatOrProtein && i !== primaryVeg);
+  const mainMeatOrProtein = allInputs.find((i) => categorizeIngredient(i) === "meat" || categorizeIngredient(i) === "fish") || "豚肉（または鶏肉）";
+  const primaryVeg = allInputs.find((i) => categorizeIngredient(i) === "vegetable") || allInputs[0] || "キャベツ";
+  // If user only scanned a vegetable, prioritize that scanned vegetable as the primary hero ingredient!
+  const heroIngredient = allInputs[0] || primaryVeg;
+  const secondaryIngredient = allInputs.find((i) => i !== heroIngredient) || (categorizeIngredient(heroIngredient) === "vegetable" ? mainMeatOrProtein : "キャベツ");
+  const otherIngredients = allInputs.filter((i) => i !== heroIngredient && i !== secondaryIngredient);
 
   let recipes: Recipe[] = [];
 
@@ -1880,8 +1815,9 @@ export function generateSmartRecipes(
   } else {
     // GENERAL DYNAMIC SYNTHESIS ENGINE
     // Works dynamically for any meat, seafood, vegetable, or tofu combination while using ONLY the user's available seasonings
-    const p1Name = mainMeatOrProtein;
-    const p2Name = primaryVeg;
+    // p1 is the hero ingredient scanned or selected, p2 is the complementary ingredient
+    const p1Name = heroIngredient;
+    const p2Name = secondaryIngredient;
     const extraNames = otherIngredients.slice(0, 2);
 
     const formatMains = (amounts: number[]) => {
