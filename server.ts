@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type } from "@google/genai";
 import { createServer as createViteServer } from "vite";
@@ -789,6 +790,31 @@ app.get("/api/health", (req, res) => {
 });
 
 async function startServer() {
+  // Explicit static pages for App Store compliance & Review
+  app.get("/privacy.html", (req, res) => {
+    const publicPath = path.join(process.cwd(), "public", "privacy.html");
+    const distPath = path.join(process.cwd(), "dist", "privacy.html");
+    if (fs.existsSync(publicPath)) {
+      return res.sendFile(publicPath);
+    }
+    if (fs.existsSync(distPath)) {
+      return res.sendFile(distPath);
+    }
+    res.status(404).send("Privacy Policy page not found.");
+  });
+
+  app.get("/support.html", (req, res) => {
+    const publicPath = path.join(process.cwd(), "public", "support.html");
+    const distPath = path.join(process.cwd(), "dist", "support.html");
+    if (fs.existsSync(publicPath)) {
+      return res.sendFile(publicPath);
+    }
+    if (fs.existsSync(distPath)) {
+      return res.sendFile(distPath);
+    }
+    res.status(404).send("Support page not found.");
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: {

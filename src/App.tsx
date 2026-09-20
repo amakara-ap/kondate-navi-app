@@ -498,7 +498,7 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-stone-200/80 bg-white py-6 text-center text-xs text-stone-500 mt-auto">
         <div className="max-w-5xl mx-auto px-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs">
             <button
               type="button"
               id="footer-privacy-btn"
@@ -525,6 +525,15 @@ export default function App() {
             >
               サポート・運営情報
             </button>
+            <span className="text-stone-300">|</span>
+            <a
+              href="/support.html"
+              target="_blank"
+              rel="noreferrer"
+              className="text-emerald-700 hover:text-emerald-900 font-bold hover:underline transition-colors flex items-center gap-1"
+            >
+              <span>公式サポート窓口 ↗</span>
+            </a>
           </div>
 
           <p className="font-semibold text-stone-700">

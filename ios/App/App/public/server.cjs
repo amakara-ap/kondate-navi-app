@@ -24,6 +24,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // server.ts
 var import_express = __toESM(require("express"), 1);
 var import_path = __toESM(require("path"), 1);
+var import_fs = __toESM(require("fs"), 1);
 var import_dotenv = __toESM(require("dotenv"), 1);
 var import_genai = require("@google/genai");
 var import_vite = require("vite");
@@ -2576,6 +2577,28 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
 async function startServer() {
+  app.get("/privacy.html", (req, res) => {
+    const publicPath = import_path.default.join(process.cwd(), "public", "privacy.html");
+    const distPath = import_path.default.join(process.cwd(), "dist", "privacy.html");
+    if (import_fs.default.existsSync(publicPath)) {
+      return res.sendFile(publicPath);
+    }
+    if (import_fs.default.existsSync(distPath)) {
+      return res.sendFile(distPath);
+    }
+    res.status(404).send("Privacy Policy page not found.");
+  });
+  app.get("/support.html", (req, res) => {
+    const publicPath = import_path.default.join(process.cwd(), "public", "support.html");
+    const distPath = import_path.default.join(process.cwd(), "dist", "support.html");
+    if (import_fs.default.existsSync(publicPath)) {
+      return res.sendFile(publicPath);
+    }
+    if (import_fs.default.existsSync(distPath)) {
+      return res.sendFile(distPath);
+    }
+    res.status(404).send("Support page not found.");
+  });
   if (process.env.NODE_ENV !== "production") {
     const vite = await (0, import_vite.createServer)({
       server: {

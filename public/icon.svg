@@ -1,60 +1,183 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
+    <!-- Background Gradient: Rich, warm, appetizing culinary gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#059669"/>
-      <stop offset="50%" stop-color="#047857"/>
+      <stop offset="40%" stop-color="#047857"/>
       <stop offset="100%" stop-color="#064e3b"/>
     </linearGradient>
+
+    <!-- Warm Golden Light Overlay -->
+    <radialGradient id="sunGlow" cx="30%" cy="20%" r="70%">
+      <stop offset="0%" stop-color="#fef08a" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#10b981" stop-opacity="0.0"/>
+    </radialGradient>
+
+    <!-- Camera Body Gradient: Soft pearl white -->
+    <linearGradient id="cameraBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="85%" stop-color="#f5f5f4"/>
+      <stop offset="100%" stop-color="#e7e5e4"/>
+    </linearGradient>
+
+    <!-- Lens Outer Rim (Metallic Emerald) -->
+    <linearGradient id="lensOuterGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="50%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+
+    <!-- Lens Deep Glass Gradient -->
+    <radialGradient id="lensGlass" cx="38%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#065f46"/>
+      <stop offset="65%" stop-color="#022c22"/>
+      <stop offset="100%" stop-color="#011812"/>
+    </radialGradient>
+
+    <!-- Carrot Gradient -->
+    <linearGradient id="carrotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="40%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+
+    <!-- Carrot Leaf Gradient -->
+    <linearGradient id="leafGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </linearGradient>
+
+    <!-- Tomato Gradient -->
+    <radialGradient id="tomatoGrad" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="50%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </radialGradient>
+
+    <!-- Gold Sparkle Gradient -->
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fef08a"/>
-      <stop offset="50%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#d97706"/>
+      <stop offset="50%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
     </linearGradient>
-    <linearGradient id="lensGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#10b981"/>
-      <stop offset="100%" stop-color="#047857"/>
-    </linearGradient>
-    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#022c22" flood-opacity="0.4"/>
+
+    <!-- Deep Drop Shadows -->
+    <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="135%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#022c22" flood-opacity="0.5"/>
+    </filter>
+    <filter id="lensShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="elementShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.25"/>
     </filter>
   </defs>
 
-  <!-- Background Base -->
-  <rect width="1024" height="1024" rx="224" fill="url(#bgGrad)"/>
+  <!-- Base App Icon Background with Apple standard continuous curve radius -->
+  <!-- In iOS xcassets, 1024x1024 icons should have a full square background (system clips corners) -->
+  <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+  <rect width="1024" height="1024" fill="url(#sunGlow)"/>
 
-  <!-- Subtle Inner Glow Layer -->
-  <circle cx="512" cy="512" r="380" fill="none" stroke="#34d399" stroke-width="4" stroke-opacity="0.25"/>
+  <!-- Decorative Kitchen / Grocery Pattern in Background (Subtle Tone-on-Tone) -->
+  <g opacity="0.08" stroke="#ffffff" stroke-width="6" fill="none" stroke-linecap="round">
+    <!-- Mini Utensils & Veggies silhouettes in corner corners -->
+    <path d="M120 180 Q140 140 180 160 Q160 200 120 180 Z"/>
+    <circle cx="860" cy="180" r="36"/>
+    <path d="M850 140 L870 140"/>
+    <circle cx="160" cy="860" r="40"/>
+    <path d="M880 840 Q840 880 880 920"/>
+  </g>
 
-  <!-- Central Camera Body Shell with Drop Shadow -->
-  <g filter="url(#dropShadow)">
-    <!-- Camera Body -->
-    <path d="M320 380 L380 300 L644 300 L704 380 L800 380 C844 380 880 416 880 460 L880 720 C880 764 844 800 800 800 L224 800 C180 800 144 764 144 720 L144 460 C144 416 180 380 224 380 Z" fill="#ffffff" fill-opacity="0.95"/>
+  <!-- Outer Framing Plate / Cutting Board Motif (Soft Glow Ring) -->
+  <circle cx="512" cy="512" r="410" fill="none" stroke="#6ee7b7" stroke-width="4" stroke-opacity="0.35"/>
+
+  <!-- Camera Body Container with realistic drop shadow -->
+  <g filter="url(#cardShadow)">
+    <!-- Camera Top Pentaprism / Flash Housing -->
+    <path d="M380 320 L428 250 Q434 240 448 240 L576 240 Q590 240 596 250 L644 320 Z" fill="#e7e5e4"/>
+    <rect x="470" y="270" width="84" height="16" rx="8" fill="#10b981" opacity="0.85"/>
+
+    <!-- Main Camera Body -->
+    <rect x="180" y="310" width="664" height="470" rx="80" fill="url(#cameraBodyGrad)"/>
+
+    <!-- Camera Top Accent Strip -->
+    <path d="M180 380 L844 380" stroke="#d6d3d1" stroke-width="2"/>
     
-    <!-- Camera Lens Rim -->
-    <circle cx="512" cy="590" r="170" fill="url(#lensGrad)"/>
-    <circle cx="512" cy="590" r="140" fill="#064e3b" stroke="#ffffff" stroke-width="12"/>
+    <!-- Camera Left Grip Texture -->
+    <rect x="210" y="390" width="40" height="340" rx="16" fill="#047857" opacity="0.12"/>
+    
+    <!-- Top-Right Shutter Button & Sensor -->
+    <circle cx="740" cy="350" r="24" fill="url(#goldGrad)" filter="url(#elementShadow)"/>
+    <circle cx="740" cy="350" r="16" fill="#ffffff" opacity="0.6"/>
+    <circle cx="280" cy="350" r="12" fill="#047857" opacity="0.7"/>
 
-    <!-- Crossed Spoon and Fork inside Lens Center -->
-    <g transform="translate(512, 590) scale(1.15)">
-      <!-- Fork -->
-      <path d="M-40 -50 L-40 -15 C-40 0 -20 15 -10 25 L-10 65 C-10 70 -5 75 0 75 C5 75 10 70 10 65 L10 25 C20 15 40 0 40 -15 L40 -50" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
-      <line x1="-20" y1="-50" x2="-20" y2="-20" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
-      <line x1="0" y1="-50" x2="0" y2="-20" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
-      <line x1="20" y1="-50" x2="20" y2="-20" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+    <!-- Central Camera Lens Ring (Multi-tier depth) -->
+    <g filter="url(#lensShadow)">
+      <!-- Outer Metal Bezel -->
+      <circle cx="512" cy="555" r="195" fill="url(#lensOuterGrad)"/>
+      <circle cx="512" cy="555" r="172" fill="#0f172a"/>
+      <!-- Inner Chrome Ring -->
+      <circle cx="512" cy="555" r="162" fill="none" stroke="#34d399" stroke-width="4" stroke-opacity="0.8"/>
+      <!-- Deep Dark Glass Aperture -->
+      <circle cx="512" cy="555" r="150" fill="url(#lensGlass)"/>
     </g>
 
-    <!-- Top Shutter Flash Indicator -->
-    <circle cx="760" cy="440" r="28" fill="url(#goldGrad)"/>
+    <!-- Inside the Lens: Fresh Vibrant Ingredients & Culinary Magic -->
+    <!-- Lens reflection highlight -->
+    <path d="M390 470 A150 150 0 0 1 600 435 A130 130 0 0 0 435 560 Z" fill="#ffffff" opacity="0.15"/>
+
+    <!-- Fresh Plump Ripe Tomato (Left of center in lens) -->
+    <g filter="url(#elementShadow)" transform="translate(420, 565)">
+      <!-- Tomato Body -->
+      <circle cx="0" cy="8" r="56" fill="url(#tomatoGrad)"/>
+      <!-- Tomato Highlight -->
+      <ellipse cx="-16" cy="-8" rx="16" ry="10" fill="#ffffff" opacity="0.45" transform="rotate(-20 -16 -8)"/>
+      <!-- Tomato Calyx / Green Leaves -->
+      <path d="M0 -34 L-6 -46 L2 -38 L14 -48 L10 -34 L22 -30 L8 -26 L12 -16 L-2 -24 L-16 -18 L-8 -26 L-22 -30 Z" fill="#22c55e"/>
+      <path d="M0 -34 Q2 -50 8 -54" fill="none" stroke="#15803d" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Fresh Golden-Orange Carrot (Angled across right of lens) -->
+    <g filter="url(#elementShadow)" transform="translate(565, 545) rotate(28)">
+      <!-- Carrot Body -->
+      <path d="M-22 -40 C-18 -48 18 -48 22 -40 C22 -10 12 55 0 95 C-12 55 -22 -10 -22 -40 Z" fill="url(#carrotGrad)"/>
+      <!-- Carrot Texture Ridges -->
+      <path d="M-12 -15 Q-4 -12 6 -14" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+      <path d="M-8 15 Q0 18 10 16" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+      <path d="M-6 45 Q-1 47 6 45" fill="none" stroke="#ea580c" stroke-width="3" stroke-linecap="round"/>
+      <!-- Carrot Highlight -->
+      <path d="M-12 -35 Q-8 10 -2 55" fill="none" stroke="#fef08a" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+      <!-- Carrot Green Leafy Stem -->
+      <g transform="translate(0, -42)">
+        <path d="M0 0 Q-15 -25 -25 -42 Q-10 -35 0 -12" fill="url(#leafGrad)"/>
+        <path d="M0 0 Q0 -35 4 -52 Q8 -35 0 -12" fill="url(#leafGrad)"/>
+        <path d="M0 0 Q18 -25 28 -40 Q12 -35 0 -12" fill="url(#leafGrad)"/>
+      </g>
+    </g>
+
+    <!-- Chef Hat / Steam / Spark of AI Culinary Inspiration -->
+    <g transform="translate(512, 442)" filter="url(#elementShadow)">
+      <!-- AI Golden Sparkle in lens center -->
+      <path d="M0 -18 Q0 0 18 0 Q0 0 0 18 Q0 0 -18 0 Q0 0 0 -18 Z" fill="url(#goldGrad)"/>
+    </g>
   </g>
 
-  <!-- Sparkling Recipe Magic Stars -->
-  <g fill="url(#goldGrad)">
-    <!-- Big Sparkle Top Right -->
-    <path d="M780 220 Q780 270 830 270 Q780 270 780 320 Q780 270 730 270 Q780 270 780 220 Z"/>
-    <!-- Small Sparkle Top Left -->
-    <path d="M260 210 Q260 240 290 240 Q260 240 260 270 Q260 240 230 240 Q260 240 260 210 Z"/>
-    <!-- Tiny Sparkle Bottom Center -->
-    <circle cx="512" cy="200" r="14"/>
+  <!-- Big Magical AI Sparkles Floating around Camera (Representing Smart Recipe Generation) -->
+  <g filter="url(#elementShadow)">
+    <!-- Top Right AI Sparkle (Large) -->
+    <path d="M780 180 Q780 230 830 230 Q780 230 780 280 Q780 230 730 230 Q780 230 780 180 Z" fill="url(#goldGrad)"/>
+    <circle cx="780" cy="230" r="10" fill="#ffffff"/>
+
+    <!-- Bottom Right AI Sparkle -->
+    <path d="M840 760 Q840 790 870 790 Q840 790 840 820 Q840 790 810 790 Q840 790 840 760 Z" fill="url(#goldGrad)"/>
+
+    <!-- Top Left AI Sparkle (Medium) -->
+    <path d="M220 190 Q220 220 250 220 Q220 220 220 250 Q220 220 190 220 Q220 220 220 190 Z" fill="url(#goldGrad)"/>
+
+    <!-- Tiny Starlight Dots -->
+    <circle cx="280" cy="150" r="6" fill="#fef08a"/>
+    <circle cx="720" cy="130" r="7" fill="#fef08a"/>
+    <circle cx="890" cy="300" r="8" fill="#fef08a"/>
+    <circle cx="140" cy="480" r="6" fill="#fef08a"/>
   </g>
 </svg>
-

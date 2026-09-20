@@ -200,11 +200,19 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
                   </p>
                   <p className="flex justify-between py-1 border-b border-stone-200/60">
                     <span className="text-stone-500 font-medium">対応端末</span>
-                    <span className="font-bold text-stone-800">iOS (iPhone) / Web</span>
+                    <span className="font-bold text-stone-800">iOS (iPhone) / iPadOS (iPad) / Web</span>
                   </p>
                   <p className="flex justify-between py-1 border-b border-stone-200/60">
                     <span className="text-stone-500 font-medium">推奨環境</span>
-                    <span className="font-bold text-stone-800">iPhone SE (第2世代以降) / iOS 15.0+</span>
+                    <span className="font-bold text-stone-800">iOS 15.0+ / iPadOS 15.0+</span>
+                  </p>
+                  <p className="flex justify-between py-1 border-b border-stone-200/60">
+                    <span className="text-stone-500 font-medium">サポート窓口</span>
+                    <a href="/support.html" target="_blank" rel="noreferrer" className="font-bold text-emerald-700 hover:underline">公式ヘルプセンター ↗</a>
+                  </p>
+                  <p className="flex justify-between py-1 border-b border-stone-200/60">
+                    <span className="text-stone-500 font-medium">サポートメール</span>
+                    <a href="mailto:m.y.k.waka524@gmail.com" className="font-bold text-emerald-700 hover:underline">m.y.k.waka524@gmail.com</a>
                   </p>
                   <p className="flex justify-between py-1 border-b border-stone-200/60">
                     <span className="text-stone-500 font-medium">バージョン</span>
@@ -217,12 +225,15 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
                 </div>
               </div>
 
-              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-2xl p-4 space-y-1.5">
-                <h4 className="font-extrabold text-stone-900 text-xs">
-                  ご意見・不具合のご報告について
+              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-2xl p-4 space-y-2">
+                <h4 className="font-extrabold text-stone-900 text-xs flex items-center justify-between">
+                  <span>ご意見・不具合のご報告について</span>
+                  <a href="/support.html" target="_blank" rel="noreferrer" className="text-emerald-700 font-bold text-[11px] underline">
+                    Webで開く
+                  </a>
                 </h4>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  皆様の日々の献立作りをより快適にするため、継続的な機能改善に努めております。機能に関するご要望やご不明な点がございましたら、App StoreのサポートURLまたはアプリ内よりお気軽にお寄せください。
+                  皆様の日々の献立作りをより快適にするため、継続的な機能改善に努めております。機能に関するご要望やご不明な点がございましたら、サポート窓口（<a href="mailto:m.y.k.waka524@gmail.com" className="text-emerald-700 font-bold underline">m.y.k.waka524@gmail.com</a>）または公式サポートページよりいつでもお寄せください。原則48時間以内にご対応いたします。
                 </p>
               </div>
             </div>

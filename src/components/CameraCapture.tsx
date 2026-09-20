@@ -527,9 +527,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
   const appUrl = typeof window !== "undefined" ? window.location.href.split("?")[0] : "";
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-5">
-      {/* Mobile Shopping Top Banner - Soft, appetizing culinary pastel design with scattered food illustrations */}
-      <div className="bg-gradient-to-br from-amber-50/95 via-rose-50/80 via-emerald-50/75 to-teal-50/90 text-stone-900 rounded-3xl p-5 sm:p-7 shadow-xs relative overflow-hidden border border-amber-200/70">
+    <div className="w-full max-w-5xl mx-auto space-y-6">
+      {/* Mobile & Tablet Shopping Top Banner - Soft, appetizing culinary pastel design with scattered food illustrations */}
+      <div className="bg-gradient-to-br from-amber-50/95 via-rose-50/80 via-emerald-50/75 to-teal-50/90 text-stone-900 rounded-3xl p-5 sm:p-7 md:p-8 shadow-xs relative overflow-hidden border border-amber-200/70">
         {/* Soft subtle glowing ambient spheres */}
         <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-amber-200/40 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute bottom-0 left-10 -mb-10 w-44 h-44 bg-rose-200/35 rounded-full blur-2xl pointer-events-none" />
@@ -548,19 +548,19 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
           <span className="absolute bottom-1 right-10 text-2xl rotate-6 drop-shadow-xs">🥑</span>
         </div>
 
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
-          <div className="space-y-2.5 max-w-xl">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+          <div className="space-y-2.5 max-w-2xl">
             {/* Colorful top tag badge */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/90 backdrop-blur-md border border-amber-300/80 text-xs font-black text-amber-900 shadow-2xs">
               <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-              <span>スーパー買い物中・スマホ専用スキャナー</span>
+              <span>iPhone & iPad 両対応・AI献立スキャナー</span>
             </div>
 
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-stone-900">
-              特売の食材をスマホでパッと撮影！
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-stone-900">
+              特売の食材をカメラでパッと撮影！
             </h1>
 
-            <p className="text-stone-700 text-xs sm:text-sm leading-relaxed font-medium">
+            <p className="text-stone-700 text-xs sm:text-sm md:text-base leading-relaxed font-medium">
               肉・魚・野菜を写すだけで、AIが作れる献立を即座に提案。
               作りたい人数に合わせて食材・調味料の量と1人前のカロリーを自動計算します。
             </p>
@@ -633,32 +633,32 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
       <div className="bg-white rounded-3xl border border-stone-200 p-4 sm:p-6 shadow-xs space-y-6">
         {/* Tab 1: Photo Scanner (Live Camera + Native Cam + Album) */}
         {activeTab === "camera" ? (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {capturedPreview ? (
               /* State A: Photo captured review */
-              <div className="relative aspect-4/3 sm:aspect-16/9 max-w-xl mx-auto rounded-2xl overflow-hidden bg-black border border-stone-200 shadow-inner">
+              <div className="relative aspect-4/3 sm:aspect-16/9 md:aspect-21/9 max-w-3xl mx-auto rounded-3xl overflow-hidden bg-black border border-stone-200 shadow-md">
                 <img
                   src={capturedPreview}
                   alt="撮影した食材"
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   <span>食材写真をセットしました</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleRetake}
-                  className="absolute bottom-3 right-3 bg-stone-900/80 hover:bg-stone-900 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-colors"
+                  className="absolute bottom-4 right-4 bg-stone-900/85 hover:bg-stone-900 text-white px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" />
+                  <RefreshCw className="w-4 h-4" />
                   <span>撮り直す・別の写真</span>
                 </button>
               </div>
             ) : (
-              /* State B: Live camera stream on smartphone */
-              <div className="space-y-3">
-                <div className="relative aspect-4/3 sm:aspect-16/9 max-w-xl mx-auto rounded-2xl overflow-hidden bg-stone-950 border border-stone-800 shadow-md flex items-center justify-center">
+              /* State B: Live camera stream on smartphone & iPad */
+              <div className="space-y-4 max-w-3xl mx-auto">
+                <div className="relative aspect-4/3 sm:aspect-16/9 md:aspect-16/10 w-full rounded-3xl overflow-hidden bg-stone-950 border border-stone-800 shadow-lg flex items-center justify-center">
                   <video
                     ref={videoRef}
                     autoPlay
@@ -668,14 +668,14 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
                   />
 
                   {/* Supermarket Viewfinder Overlay */}
-                  <div className="absolute inset-4 sm:inset-6 border-2 border-dashed border-white/50 rounded-2xl pointer-events-none flex flex-col justify-between p-3">
+                  <div className="absolute inset-4 sm:inset-6 md:inset-8 border-2 border-dashed border-white/50 rounded-2xl pointer-events-none flex flex-col justify-between p-3 sm:p-4">
                     <div className="flex justify-between items-center">
-                      <span className="bg-black/60 backdrop-blur text-white text-[11px] font-bold px-2.5 py-1 rounded-full">
+                      <span className="bg-black/60 backdrop-blur-md text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
                         🏷️ パッケージ・ラベルシール・食材を枠内に
                       </span>
                     </div>
                     <div className="text-center">
-                      <span className="bg-black/60 backdrop-blur text-white/90 text-[11px] font-medium px-3 py-1 rounded-full">
+                      <span className="bg-black/60 backdrop-blur-md text-white/95 text-[11px] sm:text-xs font-medium px-3.5 py-1.5 rounded-full shadow-sm">
                         商品名や肉・魚・野菜・茹で麺・加工肉を撮影
                       </span>
                     </div>
@@ -683,87 +683,87 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
                   {/* Camera error fallback or direct native shutter */}
                   {cameraError && (
-                    <div className="absolute inset-0 bg-stone-900/95 p-6 flex flex-col items-center justify-center text-center space-y-4 z-20">
-                      <AlertCircle className="w-10 h-10 text-amber-400" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-white">
-                          スマホカメラを起動
+                    <div className="absolute inset-0 bg-stone-900/95 p-6 sm:p-8 flex flex-col items-center justify-center text-center space-y-4 z-20">
+                      <AlertCircle className="w-12 h-12 text-amber-400" />
+                      <div className="space-y-1.5">
+                        <p className="text-base sm:text-lg font-bold text-white">
+                          カメラを起動
                         </p>
-                        <p className="text-xs text-stone-300 max-w-xs leading-relaxed">
-                          下のボタンを押すとスマホのカメラが起動し、スーパーの食材を直接撮影できます。
+                        <p className="text-xs sm:text-sm text-stone-300 max-w-sm leading-relaxed">
+                          下のボタンを押すと端末の標準カメラが起動し、食材を直接撮影できます。
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => cameraInputRef.current?.click()}
-                        className="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-950/50"
+                        className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm sm:text-base font-bold rounded-2xl flex items-center gap-2.5 shadow-lg shadow-emerald-950/50 transition-transform active:scale-95"
                       >
                         <Camera className="w-5 h-5" />
-                        <span>スマホカメラで撮影する</span>
+                        <span>カメラで撮影する</span>
                       </button>
                     </div>
                   )}
 
-                  {/* Shutter controls overlay */}
+                  {/* Shutter controls overlay with spacious padding */}
                   {!cameraError && (
-                    <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-4 z-10">
+                    <div className="absolute bottom-5 inset-x-0 flex items-center justify-center gap-6 sm:gap-8 z-10">
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-11 h-11 rounded-full bg-black/60 backdrop-blur text-white hover:bg-black/80 flex items-center justify-center transition-colors shadow-md"
+                        className="w-12 h-12 rounded-full bg-black/65 backdrop-blur-md text-white hover:bg-black/85 flex items-center justify-center transition-all shadow-md active:scale-95"
                         title="アルバムから選択"
                       >
-                        <Upload className="w-4 h-4" />
+                        <Upload className="w-5 h-5" />
                       </button>
 
                       <button
                         type="button"
                         onClick={handleShutterClick}
-                        className="w-16 h-16 rounded-full bg-white text-emerald-800 p-1.5 shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center border-4 border-emerald-600"
+                        className="w-18 h-18 rounded-full bg-white text-emerald-800 p-2 shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center border-4 border-emerald-600 cursor-pointer"
                         title="シャッターを押す"
                       >
-                        <div className="w-11 h-11 rounded-full bg-emerald-600 flex items-center justify-center text-white">
-                          <Camera className="w-5 h-5" />
+                        <div className="w-13 h-13 rounded-full bg-emerald-600 flex items-center justify-center text-white">
+                          <Camera className="w-6 h-6" />
                         </div>
                       </button>
 
                       <button
                         type="button"
                         onClick={toggleCameraFacing}
-                        className="w-11 h-11 rounded-full bg-black/60 backdrop-blur text-white hover:bg-black/80 flex items-center justify-center transition-colors shadow-md"
+                        className="w-12 h-12 rounded-full bg-black/65 backdrop-blur-md text-white hover:bg-black/85 flex items-center justify-center transition-all shadow-md active:scale-95"
                         title="カメラ切替"
                       >
-                        <RefreshCw className="w-4 h-4" />
+                        <RefreshCw className="w-5 h-5" />
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Direct Action Buttons for Smartphone Camera & Library */}
-                <div className="flex flex-col sm:flex-row gap-2 max-w-xl mx-auto pt-1">
+                {/* Direct Action Buttons for Camera & Library */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-1">
                   <button
                     type="button"
                     onClick={() => cameraInputRef.current?.click()}
-                    className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors border border-stone-200"
+                    className="flex-1 py-3.5 px-4 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors border border-stone-200 active:scale-98"
                   >
-                    <Camera className="w-4 h-4 text-emerald-700" />
-                    <span>スマホ標準カメラで撮影</span>
+                    <Camera className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700" />
+                    <span>標準カメラで撮影</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors border border-stone-200"
+                    className="flex-1 py-3.5 px-4 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors border border-stone-200 active:scale-98"
                   >
-                    <Upload className="w-4 h-4 text-emerald-700" />
-                    <span>アルバムの写真を選択</span>
+                    <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-700" />
+                    <span>写真アルバムから選択</span>
                   </button>
                 </div>
 
                 {/* Packaging, Raw Vegetable & Label OCR Assistance Notice */}
-                <div className="max-w-xl mx-auto bg-gradient-to-r from-amber-50/90 via-emerald-50/90 to-teal-50/90 border border-emerald-200/80 rounded-2xl p-3.5 flex items-start gap-2.5 shadow-2xs">
-                  <Sparkles className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                  <div className="text-[11px] leading-relaxed text-stone-800">
+                <div className="bg-gradient-to-r from-amber-50/90 via-emerald-50/90 to-teal-50/90 border border-emerald-200/80 rounded-2xl p-4 flex items-start gap-3 shadow-2xs">
+                  <Sparkles className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="text-xs sm:text-sm leading-relaxed text-stone-800">
                     <span className="font-bold block text-emerald-900 mb-0.5">🥕 丸ごと野菜・生鮮食材もGoogleレンズのように自動認識！</span>
                     人参（ニンジン）・大根（ダイコン）・キャベツ・トマトなどの生野菜の形や色をそのまま視覚的に判別。もちろんスーパーの値札シールや加工食品（ウインナー・こんにゃく・豆腐・茹で麺）の文字も高精度に読み取ります。
                   </div>
@@ -1016,7 +1016,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({
 
         {/* Recognized ingredient confirmation & quick switcher when photo is present */}
         {activeTab === "camera" && capturedPreview && (
-          <div className="bg-gradient-to-br from-emerald-50/95 via-teal-50/90 to-amber-50/80 border border-emerald-300/90 rounded-3xl p-4 sm:p-5 space-y-3.5 max-w-xl mx-auto shadow-sm">
+          <div className="bg-gradient-to-br from-emerald-50/95 via-teal-50/90 to-amber-50/80 border border-emerald-300/90 rounded-3xl p-4 sm:p-6 space-y-4 max-w-3xl mx-auto shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-700 shrink-0" />
