@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">食材カメラ献立ナビ</string>
+    <string name="title_activity_main">食材カメラ献立ナビ</string>
+    <string name="package_name">com.shokuzai.kondatenavi</string>
+    <string name="custom_url_scheme">com.shokuzai.kondatenavi</string>
+</resources>

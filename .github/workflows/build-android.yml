@@ -1,0 +1,78 @@
+name: Build & Upload Android App Bundle (AAB)
+
+on:
+  workflow_dispatch: # GitHubのActions画面から「Run workflow」ボタンでいつでも手動実行可能
+
+jobs:
+  build:
+    name: Build Android Release AAB & APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Create or Restore Keystore for Release Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          cd android/app
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Restoring keystore from GitHub Secret..."
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          else
+            echo "No secret found, generating standard release keystore..."
+            keytool -genkey -v -keystore release.keystore \
+              -alias shokuzai-key \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass kondate2026pass -keypass kondate2026pass \
+              -dname "CN=ShokuzaiKondateNavi, OU=Mobile, O=KondateNavi, L=Tokyo, ST=Tokyo, C=JP"
+          fi
+
+      - name: Build Release Android App Bundle (.aab) & APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease assembleRelease \
+            -PRELEASE_STORE_FILE=release.keystore \
+            -PRELEASE_STORE_PASSWORD=kondate2026pass \
+            -PRELEASE_KEY_ALIAS=shokuzai-key \
+            -PRELEASE_KEY_PASSWORD=kondate2026pass
+
+      - name: Save Keystore Backup as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-keystore
+          path: android/app/release.keystore
+
+      - name: Upload Android App Bundle (.aab) Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-aab-for-google-play
+          path: android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload APK Artifact (Direct Install Test)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-for-testing
+          path: android/app/build/outputs/apk/release/*.apk
