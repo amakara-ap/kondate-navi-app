@@ -4,7 +4,7 @@ android {
     namespace = "com.amakara.kondatenavi"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.shokuzai.kondatenavi"
+        applicationId "com.amakara.kondatenavi"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
