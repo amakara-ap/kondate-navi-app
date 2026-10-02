@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { Bookmark, Trash2, ArrowRight, UtensilsCrossed, Clock, Flame, History, Sparkles } from "lucide-react";
+import { Bookmark, Trash2, ArrowRight, UtensilsCrossed, Clock, Flame, History, AlertTriangle, X } from "lucide-react";
 import { Recipe } from "../types";
 
 interface SavedRecipesViewProps {
   savedRecipes: Recipe[];
   recentRecipes?: Recipe[];
-  onSelectRecipe: (recipe: Recipe) => void;
+  onSelectRecipe: (recipe) => void;
   onRemoveRecipe: (recipeId: string) => void;
   onClearRecent?: () => void;
   onGoToCamera: () => void;
@@ -20,8 +20,24 @@ export const SavedRecipesView: React.FC<SavedRecipesViewProps> = ({
   onGoToCamera,
 }) => {
   const [activeTab, setActiveTab] = useState<"saved" | "recent">("saved");
+  const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
+  const [showClearRecentConfirm, setShowClearRecentConfirm] = useState(false);
 
   const displayList = activeTab === "saved" ? savedRecipes : recentRecipes;
+
+  const handleConfirmDelete = () => {
+    if (recipeToDelete) {
+      onRemoveRecipe(recipeToDelete.id);
+      setRecipeToDelete(null);
+    }
+  };
+
+  const handleConfirmClearRecent = () => {
+    if (onClearRecent) {
+      onClearRecent();
+      setShowClearRecentConfirm(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -104,7 +120,7 @@ export const SavedRecipesView: React.FC<SavedRecipesViewProps> = ({
             <div className="flex justify-end">
               <button
                 type="button"
-                onClick={onClearRecent}
+                onClick={() => setShowClearRecentConfirm(true)}
                 className="text-xs text-stone-500 hover:text-red-600 font-bold transition-colors"
               >
                 閲覧履歴をクリア
@@ -134,9 +150,9 @@ export const SavedRecipesView: React.FC<SavedRecipesViewProps> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onRemoveRecipe(recipe.id);
+                            setRecipeToDelete(recipe);
                           }}
-                          className="text-stone-400 hover:text-red-500 p-1 rounded-lg transition-colors"
+                          className="text-stone-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                           title="保存から削除"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -167,6 +183,111 @@ export const SavedRecipesView: React.FC<SavedRecipesViewProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog: Delete Saved Recipe */}
+      {recipeToDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setRecipeToDelete(null)}
+        >
+          <div
+            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-stone-100 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecipeToDelete(null)}
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-base font-extrabold text-stone-900">
+                お気に入りから削除しますか？
+              </h3>
+              <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                「<span className="font-bold text-stone-800">{recipeToDelete.title}</span>」をお気に入り保存から削除します。
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRecipeToDelete(null)}
+                className="flex-1 py-2.5 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>削除する</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog: Clear Recent History */}
+      {showClearRecentConfirm && (
+        <div
+          className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setShowClearRecentConfirm(false)}
+        >
+          <div
+            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-stone-100 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClearRecentConfirm(false)}
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div>
+              <h3 className="text-base font-extrabold text-stone-900">
+                閲覧履歴をクリアしますか？
+              </h3>
+              <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                これまでにチェックしたレシピの閲覧履歴がすべて削除されます。
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClearRecentConfirm(false)}
+                className="flex-1 py-2.5 px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearRecent}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <span>クリアする</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
