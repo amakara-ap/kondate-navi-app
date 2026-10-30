@@ -145,6 +145,10 @@
 	<string>保存された食材や料理の写真を選択して、献立レシピのAI提案を行うために写真ライブラリを使用します。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>献立メモや調理レシピの画像を保存するために写真ライブラリへの追加を許可します。</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>お客様に最適な広告の表示および広告の効果測定のために利用します。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>食材や料理動画・メモの記録のためにマイクを使用する場合があります。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -170,7 +174,7 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

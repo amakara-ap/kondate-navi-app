@@ -41,6 +41,8 @@ class AdMobManager {
       // On iOS 14+, request App Tracking Transparency if available
       try {
         if (this.getPlatform() === "ios") {
+          // Give the root view controller 1.5s to finish appearing before requesting ATT
+          await new Promise((r) => setTimeout(r, 1500));
           await AdMob.requestTrackingAuthorization();
         }
       } catch (attErr) {

@@ -88,9 +88,15 @@ export default function App() {
 
   // Initialize and display native Google AdMob Banner on iOS/Android
   useEffect(() => {
-    adMobManager.initialize().then(() => {
-      adMobManager.showBanner();
-    });
+    const timer = setTimeout(() => {
+      adMobManager.initialize().then(() => {
+        adMobManager.showBanner();
+      }).catch((err) => {
+        console.warn("[App] AdMob initialization error:", err);
+      });
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Ensure scroll position always resets to top when changing views or generating recipes

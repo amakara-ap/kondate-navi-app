@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.amakara.kondatenavi",
+  appId: "com.shokuzai.kondatenavi",
   appName: "食材カメラ献立ナビ",
   webDir: "dist",
   server: {
