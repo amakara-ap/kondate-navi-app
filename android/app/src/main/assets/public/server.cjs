@@ -2599,6 +2599,23 @@ async function startServer() {
     }
     res.status(404).send("Support page not found.");
   });
+  app.get(["/assets-download", "/assets-download.html"], (req, res) => {
+    const filePath = import_path.default.join(process.cwd(), "public", "assets-download.html");
+    if (import_fs.default.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
+    res.status(404).send("Download page not found.");
+  });
+  app.get("/playstore-icon-512.png", (req, res) => {
+    const filePath = import_path.default.join(process.cwd(), "public", "playstore-icon-512.png");
+    res.setHeader("Content-Type", "image/png");
+    res.sendFile(filePath);
+  });
+  app.get("/playstore-feature-1024x500.png", (req, res) => {
+    const filePath = import_path.default.join(process.cwd(), "public", "playstore-feature-1024x500.png");
+    res.setHeader("Content-Type", "image/png");
+    res.sendFile(filePath);
+  });
   if (process.env.NODE_ENV !== "production") {
     const vite = await (0, import_vite.createServer)({
       server: {

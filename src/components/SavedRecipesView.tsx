@@ -5,7 +5,7 @@ import { Recipe } from "../types";
 interface SavedRecipesViewProps {
   savedRecipes: Recipe[];
   recentRecipes?: Recipe[];
-  onSelectRecipe: (recipe) => void;
+  onSelectRecipe: (recipe: Recipe) => void;
   onRemoveRecipe: (recipeId: string) => void;
   onClearRecent?: () => void;
   onGoToCamera: () => void;

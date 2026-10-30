@@ -133,10 +133,11 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({
               <div className="space-y-2">
                 <h3 className="font-extrabold text-stone-900 text-sm flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  3. 広告配信について
+                  3. 広告配信および広告識別子について
                 </h3>
                 <p className="text-stone-600 text-xs leading-relaxed">
-                  本アプリでは、無料での継続的なサービス提供のため、食材・キッチン関連のスポンサー広告を表示する場合があります。これらの広告表示において、お客様の個人を特定できる情報は収集・トラッキングされません。
+                  本アプリでは、無料での継続的なサービス提供のため、Google AdMob（Google LLC）等の提携広告配信事業者によるバナーおよびスポンサー広告を表示する場合があります。
+                  広告配信事業者は広告配信および効果測定を目的として、端末識別子や利用状況データを収集・利用する場合があります。詳細につきましてはGoogle社のプライバシーポリシー（https://policies.google.com/technologies/ads）をご参照ください。
                 </p>
               </div>
             </div>

@@ -12,6 +12,7 @@ import { PrivacyTermsModal } from "./components/PrivacyTermsModal";
 import { Recipe, AnalysisResult, DetectedIngredient } from "./types";
 import { Sparkles, Utensils, AlertCircle, ArrowLeft, RefreshCw, Layers, CheckCircle2 } from "lucide-react";
 import { generateSmartRecipes, detectIngredientsFromImageBuffer } from "./utils/recipeGenerator";
+import { adMobManager } from "./utils/admobManager";
 
 export default function App() {
   // Check if opened as smartphone camera portal via QR code or direct sync URL
@@ -84,6 +85,13 @@ export default function App() {
       console.warn("Could not persist recent recipes:", e);
     }
   }, [recentRecipes]);
+
+  // Initialize and display native Google AdMob Banner on iOS/Android
+  useEffect(() => {
+    adMobManager.initialize().then(() => {
+      adMobManager.showBanner();
+    });
+  }, []);
 
   // Ensure scroll position always resets to top when changing views or generating recipes
   useEffect(() => {
@@ -533,6 +541,15 @@ export default function App() {
               className="text-emerald-700 hover:text-emerald-900 font-bold hover:underline transition-colors flex items-center gap-1"
             >
               <span>公式サポート窓口 ↗</span>
+            </a>
+            <span className="text-stone-300">|</span>
+            <a
+              href="/assets-download.html"
+              target="_blank"
+              rel="noreferrer"
+              className="text-amber-700 hover:text-amber-900 font-bold hover:underline transition-colors flex items-center gap-1"
+            >
+              <span>ストア用画像DL ↗</span>
             </a>
           </div>
 
